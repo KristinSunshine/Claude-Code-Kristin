@@ -97,6 +97,9 @@ header.hero { display: grid; gap: 20px; }
 .ch-youtube { --c: var(--c-youtube); } .ch-facebook { --c: var(--c-facebook); } .ch-linkedin { --c: var(--c-linkedin); }
 .ch-whatsapp { --c: var(--c-whatsapp); } .ch-instagram { --c: var(--c-instagram); } .ch-tiktok { --c: var(--c-tiktok); }
 .ch-newsletter { --c: var(--c-newsletter); } .ch-event { --c: var(--c-event); } .ch-md { --c: var(--c-md); }
+.ch-intern { --c: var(--muted); }
+.swatch.ch-intern { background: transparent; border: 1px dashed var(--line); }
+.entry.ch-intern { background: transparent; border: 1px dashed var(--muted); color: var(--muted); }
 
 /* Flow */
 .flow { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0; align-items: stretch; }
@@ -210,6 +213,10 @@ td.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; whit
 .link-note { font-family: var(--font-mono); font-size: 0.7rem; color: var(--accent); border: 1px dashed color-mix(in srgb, var(--accent) 60%, var(--line)); border-radius: 4px; padding: 2px 6px; }
 .gap-note { font-size: 0.72rem; color: var(--warn); background: var(--warn-bg); border-radius: 4px; padding: 2px 6px; }
 
+.cats { min-width: 760px; }
+.cats tr.grp td { font-family: var(--font-mono); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent); padding-top: 18px; border-bottom: 1px solid var(--line); }
+.cats td b { font-weight: 600; }
+
 /* Roles table */
 .roles td:first-child { font-weight: 600; white-space: nowrap; }
 .yes { color: var(--ok); font-weight: 600; }
@@ -258,13 +265,13 @@ td.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; whit
 <div class="wrap">
 
 <header class="hero">
-  <div class="eyebrow">Konzept · Version 1 · Oktober 2026</div>
+  <div class="eyebrow">Konzept · Version 2 · Oktober 2026</div>
   <h1>feelen Marketing-Planer</h1>
   <p class="lead">Ein Ort für Redaktionsplan, Events und Manifestation Days. Du gibst ein, was ansteht. Das Tool macht daraus Aufgaben, Termine und Textentwürfe und sagt allen Beteiligten, was wann zu tun ist.</p>
-  <div class="meta"><span>7 Kanäle + Newsletter + Events</span><span>Planung, keine Auto-Veröffentlichung</span><span>Teams intern · E-Mail extern</span></div>
+  <div class="meta"><span>7 Kanäle + Newsletter + Events</span><span>Planung, keine Auto-Veröffentlichung</span><span>6–7 Personen intern, später 1–2 Externe</span><span>Benachrichtigungen in der App</span></div>
   <nav class="toc" aria-label="Inhalt">
     <a href="#farben">Kanäle &amp; Farben</a><a href="#ablauf">Ablauf</a><a href="#kalender">Kalender</a><a href="#eingabe">Eingabefeld</a>
-    <a href="#kampagne">Kampagnen</a><a href="#tabelle">Tabelle</a><a href="#themenbaum">Themenbaum</a><a href="#status">Status</a>
+    <a href="#kampagne">Kampagnen</a><a href="#events">Event-Kategorien</a><a href="#tabelle">Tabelle</a><a href="#themenbaum">Themenbaum</a><a href="#status">Status</a>
     <a href="#rollen">Rollen</a><a href="#benachrichtigung">Benachrichtigungen</a><a href="#wissen">Wissensbasis &amp; KI</a>
     <a href="#daten">Datenmodell</a><a href="#technik">Technik</a><a href="#phasen">Phasen</a><a href="#fragen">Offene Fragen</a>
   </nav>
@@ -294,7 +301,8 @@ td.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; whit
     <div class="swatch ch-linkedin"><i></i><div><b>LinkedIn</b><span>Dunkelblau · Post, Artikel</span></div></div>
     <div class="swatch ch-newsletter"><i></i><div><b>Newsletter</b><span>Petrol · Ausgabe</span></div></div>
     <div class="swatch ch-event"><i></i><div><b>Events</b><span>Orange · online &amp; offline</span></div></div>
-    <div class="swatch ch-md"><i></i><div><b>Manifestation Days</b><span>Violett · E-Mail-Serie</span></div></div>
+    <div class="swatch ch-md"><i></i><div><b>Manifestation Days</b><span>Violett · Funnel, Mails, Live Calls</span></div></div>
+    <div class="swatch ch-intern"><i></i><div><b>Intern</b><span>Grau gestrichelt · GL-Meeting, Teamurlaub</span></div></div>
   </div>
 </section>
 
@@ -320,7 +328,7 @@ td.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; whit
   <div class="sec-head">
     <div class="eyebrow">Hauptansicht</div>
     <h2>Der Kalender</h2>
-    <p class="muted">Monats-, Wochen- und Listenansicht. Über die Filter blendest du Kanäle aus und ein, zum Beispiel nur die Manifestation Days neben den Newslettern. Probier es unten aus. Ausgefüllte Einträge sind Events. Das Tool warnt, wenn mehrere Mails am selben Tag an dieselbe Liste gehen.</p>
+    <p class="muted">Monats-, Wochen- und Listenansicht. Über die Filter blendest du Kanäle aus und ein, zum Beispiel nur die Manifestation Days neben den Newslettern. Probier es unten aus. Ausgefüllte Einträge sind Events. Interne Termine wie GL-Meetings und Teamurlaub sind gestrichelt: Sie bringen keinen Content, zeigen aber, wann das Team nicht verfügbar ist. Das Tool warnt, wenn mehrere Mails am selben Tag an dieselbe Liste gehen.</p>
   </div>
   <div class="panel">
     <div class="app-bar">
@@ -340,23 +348,23 @@ td.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; whit
   <div class="sec-head">
     <div class="eyebrow">Für die Bereichsleitung</div>
     <h2>Das Eingabefeld</h2>
-    <p class="muted">Ein Feld in normaler Sprache, ohne Formular. Links steht deine Eingabe, rechts der Vorschlag, den das Tool daraus macht. Du kannst jede Zeile ändern, löschen oder ergänzen, bevor du bestätigst.</p>
+    <p class="muted">Ein Feld in normaler Sprache, ohne Formular. Links steht deine Eingabe, rechts der Vorschlag, den das Tool daraus macht. Du kannst jede Zeile ändern, löschen oder ergänzen, bevor du bestätigst. Erst dann erscheinen die Aufgaben bei den Zuständigen in der App.</p>
   </div>
   <div class="panel input-grid">
     <div>
       <label class="field-label" for="demo-input">Was steht an?</label>
-      <textarea id="demo-input">Am 26.11. haben wir den Offline-Workshop „Selbstwert“. Wir brauchen eine Ankündigungsgrafik, Posts auf Instagram und in der Facebook-Gruppe, einen Teaser im Newsletter und eine Erinnerung im WhatsApp-Kanal. Danach einen Recap mit Fotos.</textarea>
+      <textarea id="demo-input">Am 26.11. haben wir das Academy-Webinar „Selbstwert“. Wir brauchen eine Ankündigungsgrafik, Posts auf Instagram und in der Facebook-Gruppe, einen Teaser im Newsletter und eine Erinnerung im WhatsApp-Kanal. Danach einen Recap mit Ausschnitten aus der Aufzeichnung.</textarea>
       <div class="btn-row"><button class="btn" type="button">Vorschlag erstellen</button><button class="btn ghost" type="button">Datei anhängen</button></div>
     </div>
     <div class="proposal">
-      <div class="proposal-head"><b>Vorschlag: Kampagne „Workshop Selbstwert“</b><span class="example-tag">Beispiel</span></div>
-      <div class="task"><span class="date">05.11.</span><div class="what"><b>Ankündigungsgrafik (Feed + Story)</b><span>Grafik · Vorlage „Event-Ankündigung“ · Abgabe bis 05.11.</span></div><span class="route">E-Mail · extern</span></div>
-      <div class="task"><span class="date">10.11.</span><div class="what"><b>Copy Instagram-Karussell + Facebook-Post</b><span class="pill ch-instagram"><i></i>Instagram</span><span>Social Media · KI-Entwurf liegt bei</span></div><span class="route teams">Teams</span></div>
-      <div class="task"><span class="date">12.11.</span><div class="what"><b>Ankündigung veröffentlichen</b><span class="pill ch-instagram"><i></i>Instagram</span><span>Social Media · Erinnerung am Morgen</span></div><span class="route teams">Teams</span></div>
-      <div class="task"><span class="date">17.11.</span><div class="what"><b>Newsletter-Teaser einbauen</b><span class="pill ch-newsletter"><i></i>Newsletter</span><span>Newsletter · Textvorschlag liegt bei</span></div><span class="route teams">Teams</span></div>
-      <div class="task"><span class="date">19.11.</span><div class="what"><b>„Letzte Plätze“-Erinnerung</b><span class="pill ch-whatsapp"><i></i>WhatsApp</span><span>Community · Textvorschlag liegt bei</span></div><span class="route teams">Teams</span></div>
-      <div class="task"><span class="date">28.11.</span><div class="what"><b>Recap mit Fotos</b><span class="pill ch-instagram"><i></i>Instagram</span><span>Social Media · Fotos vom Event-Team</span></div><span class="route teams">Teams</span></div>
-      <div class="ai-note"><b>Hinweis der KI:</b> Am 10.11. gehen schon Newsletter und Manifestation-Days-Mail 2 raus. Den Newsletter-Teaser habe ich deshalb auf den 17.11. gelegt.</div>
+      <div class="proposal-head"><b>Vorschlag: Kampagne „Webinar Selbstwert“</b><span class="example-tag">Beispiel</span></div>
+      <div class="task"><span class="date">04.11.</span><div class="what"><b>Ankündigungsgrafik (Feed + Story)</b><span>Grafik · Canva-Vorlage „Webinar-Ankündigung“ · Abgabe bis 04.11.</span></div><span class="route">In-App</span></div>
+      <div class="task"><span class="date">03.11.</span><div class="what"><b>Copy Instagram-Karussell + Facebook-Post</b><span class="pill ch-instagram"><i></i>Instagram</span><span>Social Media · KI-Entwurf liegt bei</span></div><span class="route">In-App</span></div>
+      <div class="task"><span class="date">05.11.</span><div class="what"><b>Ankündigung veröffentlichen</b><span class="pill ch-instagram"><i></i>Instagram</span><span>Social Media · Erinnerung am Morgen</span></div><span class="route">In-App</span></div>
+      <div class="task"><span class="date">24.11.</span><div class="what"><b>Newsletter-Teaser einbauen</b><span class="pill ch-newsletter"><i></i>Newsletter</span><span>Newsletter · Textvorschlag für KlickTipp liegt bei</span></div><span class="route">In-App</span></div>
+      <div class="task"><span class="date">25.11.</span><div class="what"><b>Erinnerung „Morgen live“</b><span class="pill ch-whatsapp"><i></i>WhatsApp</span><span>Community · Textvorschlag liegt bei</span></div><span class="route">In-App</span></div>
+      <div class="task"><span class="date">28.11.</span><div class="what"><b>Recap mit Ausschnitten</b><span class="pill ch-instagram"><i></i>Instagram</span><span>Social Media · Clips aus der Aufzeichnung</span></div><span class="route">In-App</span></div>
+      <div class="ai-note"><b>Hinweis der KI:</b> Vom 9. bis 20.11. laufen die Manifestation Days mit täglichen Mails. Den Newsletter-Teaser habe ich deshalb auf den 24.11. gelegt. Alternativ geht der 17.11., wenn du die aktiven MD-Teilnehmenden in KlickTipp ausschließt.</div>
       <div class="btn-row"><button class="btn" type="button">Bestätigen &amp; Team informieren</button><button class="btn ghost" type="button">Bearbeiten</button></div>
     </div>
   </div>
@@ -366,7 +374,7 @@ td.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; whit
   <div class="sec-head">
     <div class="eyebrow">Kampagnen</div>
     <h2>Rückwärtsplanung ab dem Event-Datum</h2>
-    <p class="muted">Eine Kampagne bündelt alles, was zu einem Anlass gehört. Für jede Event-Kategorie legt ihr einmal eine Vorlage an, etwa „Offline-Workshop“, „Live-Q&amp;A“ oder „Retreat“. Danach entsteht der Zeitplan aus dem Event-Datum von selbst.</p>
+    <p class="muted">Eine Kampagne bündelt alles, was zu einem Anlass gehört. Für jede Event-Kategorie gibt es eine Vorlage mit festem Vorlauf, etwa „Retreat“, „Academy-Webinar“ oder „Speaker auf externem Event“. Daraus entsteht der Zeitplan ab dem Event-Datum von selbst. Unten ein allgemeines Beispiel.</p>
   </div>
   <div class="panel scroll-x">
     <div class="timeline">
@@ -376,12 +384,42 @@ td.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; whit
         <div class="tl-point"><span class="rel">−3 Wochen</span><span class="dot" style="--c: var(--c-newsletter)"></span><b>Newsletter</b><div class="pills"><span class="pill ch-newsletter"><i></i>Teaser</span><span class="pill ch-linkedin"><i></i>LinkedIn</span></div></div>
         <div class="tl-point"><span class="rel">−2 Wochen</span><span class="dot" style="--c: var(--c-instagram)"></span><b>Einblick</b><div class="pills"><span class="pill ch-tiktok"><i></i>TikTok</span><span class="pill ch-youtube"><i></i>Short</span></div></div>
         <div class="tl-point"><span class="rel">−1 Woche</span><span class="dot" style="--c: var(--c-whatsapp)"></span><b>Letzte Plätze</b><div class="pills"><span class="pill ch-whatsapp"><i></i>WhatsApp</span><span class="pill ch-instagram"><i></i>Story</span></div></div>
-        <div class="tl-point main"><span class="rel">Event</span><span class="dot"></span><b>Workshop</b><div class="pills"><span class="pill ch-instagram"><i></i>Live-Story</span></div></div>
+        <div class="tl-point main"><span class="rel">Event</span><span class="dot"></span><b>Event-Tag</b><div class="pills"><span class="pill ch-instagram"><i></i>Live-Story</span></div></div>
         <div class="tl-point"><span class="rel">+2 Tage</span><span class="dot" style="--c: var(--c-facebook)"></span><b>Recap</b><div class="pills"><span class="pill ch-instagram"><i></i>Karussell</span><span class="pill ch-facebook"><i></i>Danke-Post</span></div></div>
       </div>
     </div>
   </div>
   <p class="small muted">Pro Event wird außerdem gespeichert: Kategorie, online oder offline, Ort bzw. Zoom-Link, Anmeldelink, Kapazität, Referentinnen und Referenten, Material und eine Checkliste für die Nachbereitung.</p>
+</section>
+
+<section id="events">
+  <div class="sec-head">
+    <div class="eyebrow">Event-Kategorien</div>
+    <h2>Eure Kategorien mit Vorlauf</h2>
+    <p class="muted">Mit <b>Vorlauf</b> meine ich, wie viele Wochen vor dem Event die Kommunikation startet und welche Schritte bis dahin anstehen. Ein Retreat braucht Monate, ein extra Live Call nur ein bis zwei Wochen. Die Werte unten sind mein Vorschlag. Ihr passt sie einmal an, danach plant das Tool jedes neue Event damit.</p>
+  </div>
+  <div class="panel scroll-x">
+    <table class="cats">
+      <thead><tr><th>Kategorie</th><th>Sichtbar für</th><th>Start</th><th>Typische Schritte (Vorschlag)</th></tr></thead>
+      <tbody>
+        <tr class="grp"><td colspan="4">Intern veranstaltet · offline</td></tr>
+        <tr><td><b>Trainingscamp</b><br><span class="muted small">Kundenevent</span></td><td>Team</td><td class="num">−8 Wo</td><td>Einladung an Kund:innen · Erinnerung −4 Wo · Orga-Infos −1 Wo · Recap +2 Tage</td></tr>
+        <tr><td><b>Retreat</b><br><span class="muted small">öffentlich</span></td><td>Team</td><td class="num">−12 bis −16 Wo</td><td>Verkaufsstart · Ende Frühbucher −8 Wo · Letzte Plätze −3 Wo · Orga-Infos −1 Wo · Recap</td></tr>
+        <tr><td><b>VIP-Kundenevent</b></td><td>Team</td><td class="num">−6 bis −8 Wo</td><td>Persönliche Einladung · Zusage-Erinnerung −3 Wo · Danke-Nachricht · Recap nur nach Freigabe</td></tr>
+        <tr><td><b>Teamurlaub</b></td><td>Team</td><td class="num">–</td><td>Kein Content. Blocker im Kalender: Beiträge vorproduzieren, keine Abgaben in dieser Zeit</td></tr>
+        <tr><td><b>Geschäftsleitungsmeeting</b></td><td>nur GL</td><td class="num">–</td><td>Kein Content. Für das übrige Team nur als „belegt“ sichtbar</td></tr>
+        <tr class="grp"><td colspan="4">Intern veranstaltet · online</td></tr>
+        <tr><td><b>Manifestation Days</b><br><span class="muted small">12+ Tage Funnel</span></td><td>Team</td><td class="num">−4 Wo</td><td>Bewerbung und Anmeldephase · 12+ Tage Mails mit Live Calls · Angebots- und Nachfassphase</td></tr>
+        <tr><td><b>Extra Live Call</b></td><td>Team</td><td class="num">−2 Wo</td><td>Ankündigung · Erinnerung am Vortag und 1 Std. vorher · Aufzeichnung teilen</td></tr>
+        <tr><td><b>Academy-Webinar</b></td><td>Team</td><td class="num">−3 Wo</td><td>Ankündigung · Newsletter-Teaser · Erinnerung −1 Tag · Recap mit Clips</td></tr>
+        <tr class="grp"><td colspan="4">Externe Events · unsere Rolle</td></tr>
+        <tr><td><b>Hauptsponsor / Premium Partner</b></td><td>Team</td><td class="num">−12 Wo</td><td>Material an Veranstalter (Logos, Anzeigen, Texte) nach dessen Fristen · „Wir sind dabei“ −4 Wo · Countdown · Stories vor Ort · Recap</td></tr>
+        <tr><td><b>Speaker</b></td><td>Team</td><td class="num">−4 Wo</td><td>Ankündigung · Teaser zum Vortrag −1 Wo · Stories vor Ort · Clip und Recap</td></tr>
+        <tr><td><b>Aussteller</b></td><td>Team</td><td class="num">−3 Wo</td><td>Ankündigung mit Standnummer · Stories vor Ort · Recap · Nachfass für neue Kontakte</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="small muted">Bei externen Events legt das Tool zusätzlich die Fristen des Veranstalters als Aufgaben an, zum Beispiel die Abgabe von Logos oder Anzeigen. Weitere Kategorien legt ihr selbst an.</p>
 </section>
 
 <section id="tabelle">
@@ -394,12 +432,12 @@ td.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; whit
     <table>
       <thead><tr><th>Datum</th><th>Kanal</th><th>Format</th><th>Titel</th><th>Themensäule</th><th>Kampagne</th><th>Zuständig</th><th>Status</th></tr></thead>
       <tbody>
-        <tr><td class="num">09.11.</td><td><span class="pill ch-md"><i></i>Manifestation Days</span></td><td>Mail 1/5</td><td>Willkommen &amp; Intention</td><td>Manifestation</td><td>MD November</td><td>Newsletter</td><td><span class="status s-frei">freigegeben</span></td></tr>
-        <tr><td class="num">10.11.</td><td><span class="pill ch-newsletter"><i></i>Newsletter</span></td><td>Ausgabe #45</td><td>Novemberimpulse</td><td>Wissen &amp; Impulse</td><td>–</td><td>Newsletter</td><td><span class="status s-review">zur Freigabe</span></td></tr>
-        <tr><td class="num">12.11.</td><td><span class="pill ch-instagram"><i></i>Instagram</span></td><td>Karussell</td><td>Workshop-Ankündigung</td><td>Community &amp; Events</td><td>Workshop Selbstwert</td><td>Social Media</td><td><span class="status s-arbeit">in Arbeit</span></td></tr>
-        <tr><td class="num">12.11.</td><td><span class="pill ch-facebook"><i></i>Facebook-Gruppe</span></td><td>Post</td><td>Workshop-Ankündigung</td><td>Community &amp; Events</td><td>Workshop Selbstwert</td><td>Community</td><td><span class="status s-arbeit">in Arbeit</span></td></tr>
-        <tr><td class="num">18.11.</td><td><span class="pill ch-youtube"><i></i>YouTube</span></td><td>Video</td><td>Was Selbstwert wirklich bedeutet</td><td>Wissen &amp; Impulse</td><td>Workshop Selbstwert</td><td>Video (extern)</td><td><span class="status s-idee">Idee</span></td></tr>
-        <tr><td class="num">26.11.</td><td><span class="pill ch-event"><i></i>Event · offline</span></td><td>Workshop</td><td>Workshop „Selbstwert“</td><td>Community &amp; Events</td><td>Workshop Selbstwert</td><td>Event-Team</td><td><span class="status s-frei">freigegeben</span></td></tr>
+        <tr><td class="num">09.11.</td><td><span class="pill ch-md"><i></i>Manifestation Days</span></td><td>Mail Tag 1</td><td>Willkommen &amp; Intention</td><td>Manifestation</td><td>MD November</td><td>Newsletter</td><td><span class="status s-frei">freigegeben</span></td></tr>
+        <tr><td class="num">05.11.</td><td><span class="pill ch-instagram"><i></i>Instagram</span></td><td>Karussell</td><td>Webinar-Ankündigung</td><td>Community &amp; Events</td><td>Webinar Selbstwert</td><td>Social Media</td><td><span class="status s-arbeit">in Arbeit</span></td></tr>
+        <tr><td class="num">05.11.</td><td><span class="pill ch-facebook"><i></i>Facebook-Gruppe</span></td><td>Post</td><td>Webinar-Ankündigung</td><td>Community &amp; Events</td><td>Webinar Selbstwert</td><td>Community</td><td><span class="status s-review">zur Freigabe</span></td></tr>
+        <tr><td class="num">18.11.</td><td><span class="pill ch-youtube"><i></i>YouTube</span></td><td>Video</td><td>Was Selbstwert wirklich bedeutet</td><td>Wissen &amp; Impulse</td><td>Webinar Selbstwert</td><td>Video</td><td><span class="status s-idee">Idee</span></td></tr>
+        <tr><td class="num">24.11.</td><td><span class="pill ch-newsletter"><i></i>Newsletter</span></td><td>Ausgabe #47</td><td>Selbstwert + Webinar-Teaser</td><td>Wissen &amp; Impulse</td><td>Webinar Selbstwert</td><td>Newsletter</td><td><span class="status s-idee">Idee</span></td></tr>
+        <tr><td class="num">26.11.</td><td><span class="pill ch-event"><i></i>Event · online</span></td><td>Academy-Webinar</td><td>Webinar „Selbstwert“</td><td>Community &amp; Events</td><td>Webinar Selbstwert</td><td>Academy</td><td><span class="status s-frei">freigegeben</span></td></tr>
         <tr><td class="num">04.11.</td><td><span class="pill ch-whatsapp"><i></i>WhatsApp-Kanal</span></td><td>Impuls</td><td>Wochenimpuls KW 45</td><td>Wissen &amp; Impulse</td><td>–</td><td>Community</td><td><span class="status s-live">veröffentlicht</span></td></tr>
       </tbody>
     </table>
@@ -425,22 +463,31 @@ td.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; whit
 
       <div class="pillar">Community &amp; Events<small>Themensäule · 30 %</small></div>
       <div class="topics">
-        <div class="topic"><div class="topic-name">Workshop „Selbstwert“<small>Kampagne · Event 26.11.</small></div>
-          <div class="posts"><span class="pill ch-event"><i></i>Workshop</span><span class="pill ch-instagram"><i></i>Ankündigung</span><span class="pill ch-facebook"><i></i>Gruppen-Post</span><span class="pill ch-whatsapp"><i></i>Letzte Plätze</span><span class="pill ch-instagram"><i></i>Recap</span></div></div>
-        <div class="topic"><div class="topic-name">Live-Q&amp;A<small>Event online · 16.11.</small></div>
-          <div class="posts"><span class="pill ch-event"><i></i>Q&amp;A</span><span class="pill ch-facebook"><i></i>Fragen sammeln</span><span class="link-note">Fragen fließen ins YouTube-Video</span></div></div>
+        <div class="topic"><div class="topic-name">Webinar „Selbstwert“<small>Kampagne · Academy · 26.11.</small></div>
+          <div class="posts"><span class="pill ch-event"><i></i>Webinar</span><span class="pill ch-instagram"><i></i>Ankündigung</span><span class="pill ch-facebook"><i></i>Gruppen-Post</span><span class="pill ch-whatsapp"><i></i>Erinnerung</span><span class="pill ch-instagram"><i></i>Recap</span></div></div>
+        <div class="topic"><div class="topic-name">Trainingscamp<small>Kundenevent · 6.–8.11.</small></div>
+          <div class="posts"><span class="pill ch-event"><i></i>Camp</span><span class="pill ch-facebook"><i></i>Fragen sammeln</span><span class="link-note">Fragen fließen ins YouTube-Video</span></div></div>
       </div>
 
       <div class="pillar">Wissen &amp; Impulse<small>Themensäule · 35 %</small></div>
       <div class="topics">
         <div class="topic"><div class="topic-name">Selbstwert<small>zahlt auf den Workshop ein</small></div>
-          <div class="posts"><span class="pill ch-youtube"><i></i>Video 18.11.</span><span class="pill ch-linkedin"><i></i>Post</span><span class="pill ch-newsletter"><i></i>Leitartikel #46</span><span class="link-note">alle verlinken auf Workshop</span></div></div>
+          <div class="posts"><span class="pill ch-youtube"><i></i>Video 18.11.</span><span class="pill ch-linkedin"><i></i>Post</span><span class="pill ch-newsletter"><i></i>Leitartikel #47</span><span class="link-note">alle verlinken auf das Webinar</span></div></div>
         <div class="topic"><div class="topic-name">Wochenimpuls<small>wiederkehrend · jeden Mittwoch</small></div>
           <div class="posts"><span class="pill ch-whatsapp"><i></i>Impuls</span><span class="pill ch-facebook"><i></i>Impuls</span></div></div>
       </div>
     </div>
   </div>
-  <p class="small muted">Themensäulen und Themen sind Platzhalter. Eure echten Säulen legen wir beim Einrichten fest. Die Prozentangaben zeigen, wie sich die Beiträge eines Monats verteilen.</p>
+  <p class="small muted">Themensäulen und Themen sind Platzhalter. Die Prozentangaben zeigen, wie sich die Beiträge eines Monats verteilen.</p>
+  <div class="panel">
+    <h3 style="margin-bottom:12px">So erarbeiten wir eure Themensäulen</h3>
+    <div class="state-notes">
+      <div><b>1 · Material sammeln</b><span>Eure besten Posts, Newsletter, MD-Mails, Academy-Inhalte und Event-Beschreibungen der letzten 6–12 Monate.</span></div>
+      <div><b>2 · Auswerten</b><span>Die KI gruppiert alles nach Themen und zeigt, was häufig vorkommt und was gut lief.</span></div>
+      <div><b>3 · Vorschlag</b><span>3–5 Säulen mit Beschreibung, Unterthemen und empfohlenem Anteil pro Monat.</span></div>
+      <div><b>4 · Festlegen</b><span>Ihr korrigiert und gebt frei. Danach wird jeder neue Beitrag einer Säule zugeordnet.</span></div>
+    </div>
+  </div>
 </section>
 
 <section id="status">
@@ -470,54 +517,56 @@ td.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; whit
   <div class="sec-head">
     <div class="eyebrow">Rollen &amp; Rechte</div>
     <h2>Wer was sieht und darf</h2>
-    <p class="muted">Interne melden sich mit ihrem Microsoft-Konto an, also ohne extra Passwort. Externe brauchen kein Konto. Sie öffnen einen persönlichen Link aus der E-Mail.</p>
+    <p class="muted">Zum Start 6–7 Personen intern, jede mit eigenem Login in der App. Freigeben können drei Personen. Eine Freigabe reicht, und das Tool zeigt, wer freigegeben hat. Externe kommen später mit eingeschränktem Zugang dazu.</p>
   </div>
   <div class="panel scroll-x">
     <table>
-      <thead><tr><th>Rolle</th><th>Kalender &amp; Themen</th><th>Eingabefeld</th><th>Freigeben</th><th>Wissensbasis</th><th>Erreichbar über</th></tr></thead>
+      <thead><tr><th>Rolle</th><th>Kalender &amp; Themen</th><th>Eingabefeld</th><th>Freigeben</th><th>Wissensbasis</th><th>GL-Termine</th></tr></thead>
       <tbody>
-        <tr><td>Bereichsleitung</td><td class="yes">alles</td><td class="yes">ja</td><td class="yes">ja</td><td class="yes">pflegen</td><td>Teams + Wochenüberblick</td></tr>
-        <tr><td>Team intern</td><td class="yes">alles</td><td class="no">Ideen vorschlagen</td><td class="no">nach Einstellung</td><td>lesen</td><td>Teams</td></tr>
-        <tr><td>Weitere Freigabe (optional)</td><td>alles</td><td class="no">nein</td><td class="yes">ja</td><td>lesen</td><td>Teams oder E-Mail</td></tr>
-        <tr><td>Externe Dienstleister</td><td class="no">nur eigene Aufgaben</td><td class="no">nein</td><td class="no">nein</td><td>Vorlagen zur Aufgabe</td><td>E-Mail mit Link</td></tr>
+        <tr><td>Geschäftsleitung (du)</td><td class="yes">alles</td><td class="yes">ja</td><td class="yes">ja</td><td class="yes">pflegen</td><td class="yes">sichtbar</td></tr>
+        <tr><td>Senior Manager</td><td class="yes">alles</td><td class="yes">ja</td><td class="yes">ja</td><td class="yes">pflegen</td><td class="no">als „belegt“</td></tr>
+        <tr><td>Assistenz der GL</td><td class="yes">alles</td><td class="yes">ja</td><td class="yes">ja</td><td>lesen</td><td class="yes">sichtbar</td></tr>
+        <tr><td>Team intern</td><td class="yes">alles</td><td class="no">Ideen vorschlagen</td><td class="no">nein</td><td>lesen</td><td class="no">als „belegt“</td></tr>
+        <tr><td>Externe (später)</td><td class="no">nur eigene Aufgaben</td><td class="no">nein</td><td class="no">nein</td><td>Vorlagen zur Aufgabe</td><td class="no">nein</td></tr>
       </tbody>
     </table>
   </div>
+  <p class="small muted">Welche Rolle GL-Termine sieht, ist ein Vorschlag. Das stellt ihr selbst ein.</p>
 </section>
 
 <section id="benachrichtigung">
   <div class="sec-head">
     <div class="eyebrow">Benachrichtigungen</div>
-    <h2>Teams für euch, E-Mail für Externe</h2>
-    <p class="muted">Jede Person stellt ein, ob sie Hinweise sofort oder einmal morgens gesammelt bekommt. Erinnerungen kommen automatisch 2 Tage vor der Abgabe und am Morgen des Veröffentlichungstags.</p>
+    <h2>Alles läuft in der App</h2>
+    <p class="muted">Für den ersten Entwurf ohne Teams: Jede Person sieht beim Öffnen der App ihre Aufgaben und neuen Mitteilungen. Erinnerungen kommen automatisch 2 Tage vor der Abgabe und am Morgen des Veröffentlichungstags. Teams und E-Mail lassen sich später als zusätzliche Wege einschalten.</p>
   </div>
   <div class="cols">
     <div class="msg">
-      <div class="msg-top"><span>Teams · Kanal „Marketing-Planung“</span><span>Beispiel</span></div>
+      <div class="msg-top"><span>Mitteilungen · Glocke oben rechts</span><span>Beispiel</span></div>
       <div class="msg-body">
         <b>Neue Aufgabe: Copy Instagram-Karussell</b>
-        <span><span class="mention">@Social Media</span> Kampagne „Workshop Selbstwert“. Abgabe am 10.11., Veröffentlichung am 12.11. Ein KI-Entwurf liegt bei.</span>
-        <span class="fake-btn">Im Planer öffnen</span>
+        <span>Kampagne „Webinar Selbstwert“. Abgabe am 03.11., Veröffentlichung am 05.11. Ein KI-Entwurf liegt bei.</span>
+        <span class="fake-btn">Aufgabe öffnen</span>
       </div>
     </div>
     <div class="msg">
-      <div class="msg-top"><span>E-Mail · an externe Grafik</span><span>Beispiel</span></div>
+      <div class="msg-top"><span>Startseite · „Meine Aufgaben“</span><span>Beispiel</span></div>
       <div class="msg-body">
-        <b>Betreff: Auftrag Ankündigungsgrafik, Abgabe 05.11.</b>
-        <span>Hallo, für den Workshop „Selbstwert“ am 26.11. brauchen wir eine Feed- und eine Story-Grafik. Briefing, Texte und Vorlage findest du unter dem Link. Dort kannst du auch deine Entwürfe hochladen.</span>
-        <span class="fake-btn">Aufgabe ansehen</span>
+        <b>Heute fällig</b>
+        <span>Ankündigungsgrafik Webinar (Canva-Vorlage) · Facebook-Post freigeben lassen · Wochenimpuls im WhatsApp-Kanal veröffentlichen</span>
+        <span class="fake-btn">Alle Aufgaben</span>
       </div>
     </div>
     <div class="msg">
-      <div class="msg-top"><span>Teams · an dich · Montag 8:00</span><span>Beispiel</span></div>
+      <div class="msg-top"><span>Startseite · für dich · Montag</span><span>Beispiel</span></div>
       <div class="msg-body">
         <b>Deine Woche im Überblick</b>
-        <span>14 Veröffentlichungen geplant · 3 warten auf deine Freigabe · 1 Aufgabe überfällig (Story-Grafik) · Hinweis: 10.11. mit zwei Mails an dieselbe Liste.</span>
+        <span>14 Veröffentlichungen geplant · 3 warten auf Freigabe (du, Senior Manager oder Assistenz) · 1 Aufgabe überfällig · Hinweis: 10.11. mit zwei Mails an dieselbe Liste.</span>
         <span class="fake-btn">Zur Wochenansicht</span>
       </div>
     </div>
   </div>
-  <p class="small muted">Zusätzlich kann jede Person ihre Termine als Kalender-Abo (iCal) in Outlook übernehmen.</p>
+  <p class="small muted">Zusätzlich kann jede Person ihre Termine als Kalender-Abo (iCal) in Outlook übernehmen. Auf dem Handy lässt sich die App wie eine normale App auf den Startbildschirm legen.</p>
 </section>
 
 <section id="wissen">
@@ -540,16 +589,17 @@ td.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; whit
       <h3>Design &amp; Vorlagen</h3>
       <ul>
         <li>Logos, Schriften, Farbcodes, Bildstil</li>
-        <li>Grafikvorlagen je Anlass: Ankündigung, Zitat, Event, Recap</li>
+        <li>Canva: Links zu euren Vorlagen und eurem Brand Kit, je Anlass (Ankündigung, Zitat, Event, Recap)</li>
+        <li>InDesign: Vorlagen als PDF zur Orientierung, Originaldateien zum Download für die Grafik</li>
         <li>Formate und Maße je Kanal (Feed, Story, Thumbnail)</li>
-        <li>Grafiken entstehen aus euren Vorlagen: KI füllt Text und Bild ein</li>
+        <li>KI liefert Text, Bildidee und passende Vorlage. Die Grafik selbst wird in Canva fertiggestellt</li>
       </ul>
     </div>
     <div class="panel card">
       <h3>Manifestation Days</h3>
       <ul>
         <li>Upload von E-Mail-Serie und Copywriting-Doc</li>
-        <li>Jede Mail als eigener Termin im Kalender (Violett)</li>
+        <li>12+ Tage Funnel: jede Mail und jeder Live Call als eigener Termin (Violett)</li>
         <li>Ebene ein- und ausblendbar</li>
         <li>Warnung bei Überschneidung mit Newsletter oder Event-Mails</li>
       </ul>
@@ -559,8 +609,8 @@ td.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; whit
     <h3 style="margin-bottom:12px">Was die KI liefert</h3>
     <div class="state-notes">
       <div><b>Copy je Kanal</b><span>Caption, Hashtags, Alt-Text und Hook. Für jeden Kanal passend formuliert.</span></div>
-      <div><b>Newsletter-Entwürfe</b><span>Betreffzeilen zur Auswahl, Vorschautext, Abschnitte. Zum Kopieren in euer Newsletter-Tool.</span></div>
-      <div><b>Grafiken</b><span>Ankündigungen, Zitate und Event-Grafiken auf Basis eurer Vorlagen, in allen Formaten.</span></div>
+      <div><b>Newsletter-Entwürfe</b><span>Betreffzeilen zur Auswahl, Vorschautext, Abschnitte. Zum Kopieren in KlickTipp oder ActiveCampaign.</span></div>
+      <div><b>Grafik-Briefings</b><span>Texte für die Grafik, Bildidee und die passende Canva-Vorlage. Später auch fertige Entwürfe.</span></div>
       <div><b>Frequenz &amp; Mix</b><span>Vorschlag pro Kanal und Woche, angepasst an eure Kapazität und eure Kennzahlen.</span></div>
       <div><b>Wiederverwertung</b><span>Aus einem Video werden Shorts, ein Karussell, ein LinkedIn-Post und ein Newsletter-Absatz.</span></div>
       <div><b>Lücken &amp; Konflikte</b><span>Zu viele Mails an einem Tag, Themen ohne Beitrag, Personen mit zu vielen Aufgaben.</span></div>
@@ -578,10 +628,10 @@ td.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; whit
     <div class="entity"><h4>Kampagne</h4><ul><li>Name, Ziel, Zeitraum</li><li>Vorlage (Event-Kategorie)</li><li class="rel">→ Event (optional)</li><li class="rel">→ Thema</li></ul></div>
     <div class="entity"><h4>Beitrag</h4><ul><li>Kanal, Format, Datum</li><li>Titel, Copy, Grafiken</li><li>Status, Versionen</li><li class="rel">→ Kampagne, Thema</li><li class="rel">→ verweist auf Beitrag</li></ul></div>
     <div class="entity"><h4>Aufgabe</h4><ul><li>Was, Abgabe, Briefing</li><li>Status, Kommentare, Uploads</li><li class="rel">→ Beitrag oder Event</li><li class="rel">→ Person</li></ul></div>
-    <div class="entity"><h4>Event</h4><ul><li>Kategorie, online/offline</li><li>Ort/Link, Anmeldelink</li><li>Kapazität, Referent:innen</li><li>Checkliste Nachbereitung</li></ul></div>
-    <div class="entity"><h4>E-Mail-Serie</h4><ul><li>Name (z. B. Manifestation Days)</li><li>Mails mit Datum &amp; Betreff</li><li>Copywriting-Doc</li><li>Empfängerliste</li></ul></div>
+    <div class="entity"><h4>Event</h4><ul><li>Kategorie, online/offline</li><li>intern oder extern, unsere Rolle</li><li>Sichtbarkeit (alle / nur GL)</li><li>Ort/Link, Anmeldelink</li><li>Kapazität, Referent:innen</li><li>Checkliste Nachbereitung</li></ul></div>
+    <div class="entity"><h4>E-Mail-Serie</h4><ul><li>Name (z. B. Manifestation Days)</li><li>Mails und Live Calls mit Datum</li><li>Copywriting-Doc</li><li>Tool (KlickTipp/ActiveCampaign), Liste</li></ul></div>
     <div class="entity"><h4>Themensäule / Thema</h4><ul><li>Name, Beschreibung</li><li>Zielanteil im Monat</li><li class="rel">→ übergeordnete Säule</li></ul></div>
-    <div class="entity"><h4>Person</h4><ul><li>Name, Rolle, intern/extern</li><li>Kanäle, Zuständigkeiten</li><li>Benachrichtigung: Teams/E-Mail</li><li>Abwesenheiten, Kapazität</li></ul></div>
+    <div class="entity"><h4>Person</h4><ul><li>Name, Rolle, intern/extern</li><li>Kanäle, Zuständigkeiten</li><li>Darf freigeben: ja/nein</li><li>Abwesenheiten, Kapazität</li></ul></div>
     <div class="entity"><h4>Wissensbasis</h4><ul><li>Texte, Regeln, Wortliste</li><li>Vorlagen, Brand Kit</li><li>gültig für Kanal(e)</li></ul></div>
     <div class="entity"><h4>Kennzahl</h4><ul><li>Reichweite, Interaktionen</li><li>Öffnungsrate, Anmeldungen</li><li class="rel">→ Beitrag oder Event</li></ul></div>
   </div>
@@ -597,17 +647,18 @@ td.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; whit
       <h3>Notwendig</h3>
       <ul>
         <li>Eigene Web-App, im Browser auf Laptop und Handy</li>
-        <li>Login mit Microsoft-Konto für das interne Team</li>
+        <li>Eigenes Login in der App für 6–7 Personen</li>
         <li>KI-Anbindung über die Claude-API</li>
-        <li>Teams-Benachrichtigungen über die Workflows-App</li>
-        <li>E-Mail-Versand für Externe und Erinnerungen</li>
+        <li>Mitteilungen und Erinnerungen direkt in der App</li>
+        <li>Dateiablage für Vorlagen, Docs und Entwürfe</li>
       </ul>
     </div>
     <div class="panel card">
       <h3>Datenschutz</h3>
       <ul>
         <li>Hosting und Datenbank in der EU</li>
-        <li>AV-Verträge mit Hosting, E-Mail- und KI-Anbieter</li>
+        <li>AV-Verträge mit Hosting- und KI-Anbieter</li>
+        <li>GL-Termine nur für berechtigte Rollen im Detail sichtbar</li>
         <li>Externe sehen nur ihre eigenen Aufgaben</li>
         <li>Hinweise zur Kennzeichnung KI-generierter Bilder</li>
       </ul>
@@ -616,7 +667,8 @@ td.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; whit
       <h3>Bewusst nicht in Version 1</h3>
       <ul>
         <li>Automatisches Posten in den Kanälen</li>
-        <li>Direkte Verbindung zum Newsletter-Tool</li>
+        <li>Teams- und E-Mail-Benachrichtigungen</li>
+        <li>Direkte Verbindung zu KlickTipp, ActiveCampaign oder Canva</li>
         <li>Automatischer Abruf von Kennzahlen</li>
         <li>Alles später ergänzbar, ohne Umbau</li>
       </ul>
@@ -632,11 +684,11 @@ td.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; whit
   </div>
   <div class="phases">
     <div class="phase first"><span class="tag">Phase 1 · Fundament</span><h3>Planen &amp; abstimmen</h3>
-      <ul><li>Kalender, Tabelle, Themenbaum</li><li>Beiträge, Events, Kategorien, Kampagnen</li><li>Status, Freigaben, Kommentare</li><li>Rollen, Login, Externen-Links</li><li>Teams- und E-Mail-Benachrichtigungen</li><li>Manifestation Days als Kalender-Ebene</li><li>iCal-Export</li></ul></div>
+      <ul><li>Kalender, Tabelle, Themenbaum</li><li>Beiträge, Events, eure Event-Kategorien, Kampagnen</li><li>Status, Freigaben durch drei Personen, Kommentare</li><li>Rollen und Login für 6–7 Personen</li><li>Mitteilungen und „Meine Aufgaben“ in der App</li><li>Manifestation Days als Kalender-Ebene</li><li>iCal-Export</li></ul></div>
     <div class="phase"><span class="tag">Phase 2 · KI</span><h3>Eingabefeld &amp; Texte</h3>
-      <ul><li>Eingabefeld mit Vorschlag und Aufgabenverteilung</li><li>Wissensbasis: Tone of Voice, Personas</li><li>Copy je Kanal, Newsletter-Entwürfe</li><li>Rückwärtsplanung aus Event-Vorlagen</li><li>Warnungen bei Überschneidungen</li></ul></div>
+      <ul><li>Eingabefeld mit Vorschlag und Aufgabenverteilung</li><li>Themensäulen aus euren Inhalten erarbeiten</li><li>Wissensbasis: Tone of Voice, Personas, Canva-Vorlagen</li><li>Copy je Kanal, Newsletter-Entwürfe</li><li>Rückwärtsplanung aus Event-Vorlagen</li><li>Warnungen bei Überschneidungen</li></ul></div>
     <div class="phase"><span class="tag">Phase 3 · Ausbau</span><h3>Grafik &amp; Lernen</h3>
-      <ul><li>Grafiken aus euren Vorlagen</li><li>Kennzahlen eintragen und auswerten</li><li>Vorschläge zu Frequenz und Mix</li><li>Wiederverwertung und Lücken im Themenbaum</li><li>Kapazität und Abwesenheiten</li></ul></div>
+      <ul><li>Grafik-Entwürfe aus euren Vorlagen</li><li>Kennzahlen eintragen und auswerten</li><li>Vorschläge zu Frequenz und Mix</li><li>Wiederverwertung und Lücken im Themenbaum</li><li>Zugang für Externe, optional Teams und E-Mail</li></ul></div>
   </div>
 </section>
 
@@ -644,16 +696,15 @@ td.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; whit
   <div class="sec-head">
     <div class="eyebrow">Zum Abstimmen</div>
     <h2>Offene Fragen</h2>
-    <p class="muted">Diese Punkte brauche ich von euch, bevor Phase 1 startet.</p>
+    <p class="muted">Geklärt sind: 6–7 Personen intern, Freigabe durch dich, Senior Manager oder Assistenz, eure Event-Kategorien, KlickTipp und ActiveCampaign, Canva und InDesign, Benachrichtigungen zunächst nur in der App. Das hier fehlt noch:</p>
   </div>
   <div class="questions">
-    <div class="q"><div><b>Wie viele Personen nutzen das Tool?</b><span>Wie viele intern, wie viele externe Dienstleister, und wer ist für welche Kanäle zuständig?</span></div></div>
-    <div class="q"><div><b>Wer gibt frei?</b><span>Nur du, oder bei bestimmten Inhalten zusätzlich jemand anderes, etwa die Geschäftsführung?</span></div></div>
-    <div class="q"><div><b>Welche Themensäulen habt ihr?</b><span>Falls es sie noch nicht gibt, erarbeiten wir sie aus euren bisherigen Inhalten.</span></div></div>
-    <div class="q"><div><b>Welche Event-Kategorien gibt es?</b><span>Und wie sieht euer üblicher Vorlauf pro Kategorie aus?</span></div></div>
-    <div class="q"><div><b>Welches Newsletter-Tool nutzt ihr?</b><span>Wichtig, damit die Entwürfe sich leicht übernehmen lassen.</span></div></div>
-    <div class="q"><div><b>Gibt es IT-Vorgaben?</b><span>Zum Beispiel zum Microsoft-Login, zu Teams-Apps oder zum Hosting.</span></div></div>
-    <div class="q"><div><b>Arbeitet ihr mit Canva oder Figma?</b><span>Davon hängt ab, wie wir die Designvorlagen am besten übernehmen.</span></div></div>
+    <div class="q"><div><b>Passt der Vorlauf pro Event-Kategorie?</b><span>Bitte die Tabelle bei den Event-Kategorien prüfen und korrigieren, wo eure Praxis anders ist.</span></div></div>
+    <div class="q"><div><b>Wer ist für welche Kanäle zuständig?</b><span>Eine Liste der 6–7 Personen mit Rolle und Kanälen. Daraus verteilt das Tool die Aufgaben.</span></div></div>
+    <div class="q"><div><b>Wofür nutzt ihr KlickTipp, wofür ActiveCampaign?</b><span>Zum Beispiel Newsletter in einem, Manifestation Days im anderen. Wichtig für die Warnung bei Überschneidungen.</span></div></div>
+    <div class="q"><div><b>Material für die Themensäulen</b><span>Welche Inhalte der letzten 6–12 Monate könnt ihr mir geben? Exporte, Docs oder Links reichen.</span></div></div>
+    <div class="q"><div><b>Wer sieht GL-Meetings und Teamurlaub?</b><span>Mein Vorschlag: GL-Meetings im Detail nur für dich und die Assistenz, für alle anderen als „belegt“.</span></div></div>
+    <div class="q"><div><b>Wo soll die App laufen?</b><span>Ich empfehle ein EU-Hosting, das ich einrichte. Gibt es Vorgaben oder einen bevorzugten Anbieter?</span></div></div>
   </div>
 </section>
 
@@ -663,21 +714,24 @@ td.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; whit
 (function () {
   var channels = [
     ["instagram", "Instagram"], ["facebook", "Facebook"], ["whatsapp", "WhatsApp"], ["youtube", "YouTube"],
-    ["tiktok", "TikTok"], ["linkedin", "LinkedIn"], ["newsletter", "Newsletter"], ["event", "Events"], ["md", "Manifestation Days"]
+    ["tiktok", "TikTok"], ["linkedin", "LinkedIn"], ["newsletter", "Newsletter"], ["event", "Events"], ["md", "Manifestation Days"],
+    ["intern", "Intern"]
   ];
   // Beispieldaten November 2026: [Tag, Kanal, Titel, freigegeben?]
   var entries = [
-    [2, "instagram", "Reel: Was sind die MD?", 1], [2, "linkedin", "Post: Jahresrückblick", 0],
+    [2, "instagram", "Reel: Was sind die MD?", 1], [2, "intern", "GL-Meeting", 1],
     [3, "newsletter", "Newsletter #44", 1], [4, "whatsapp", "Wochenimpuls", 1], [4, "youtube", "Video: Intention setzen", 1],
-    [5, "tiktok", "Clip aus Video", 0], [6, "facebook", "Umfrage", 1],
-    [9, "md", "MD Mail 1", 1], [10, "md", "MD Mail 2", 1], [10, "newsletter", "Newsletter #45", 0],
-    [11, "md", "MD Mail 3", 1], [11, "whatsapp", "Wochenimpuls", 0], [12, "md", "MD Mail 4", 1],
-    [12, "instagram", "Workshop-Ankündigung", 0], [12, "facebook", "Workshop-Ankündigung", 0], [13, "md", "MD Mail 5", 1],
-    [16, "event", "Live-Q&A (online)", 1], [17, "newsletter", "Newsletter #46", 0], [18, "youtube", "Video: Selbstwert", 0],
-    [18, "whatsapp", "Wochenimpuls", 0], [19, "whatsapp", "Letzte Plätze", 0], [19, "instagram", "Story: Letzte Plätze", 0],
-    [20, "tiktok", "Behind the Scenes", 0], [23, "linkedin", "Post: Selbstwert", 0], [24, "newsletter", "Newsletter #47", 0],
-    [25, "whatsapp", "Wochenimpuls", 0], [26, "event", "Workshop Selbstwert", 1], [26, "instagram", "Live-Story", 0],
-    [28, "instagram", "Recap-Karussell", 0], [28, "facebook", "Danke-Post", 0], [30, "youtube", "Short", 0]
+    [5, "instagram", "Webinar-Ankündigung", 0], [5, "facebook", "Webinar-Ankündigung", 0],
+    [6, "event", "Trainingscamp", 1], [7, "event", "Trainingscamp", 1], [8, "event", "Trainingscamp", 1],
+    [9, "md", "MD Tag 1 · Live Call", 1], [10, "md", "MD Tag 2", 1], [10, "newsletter", "Newsletter #45", 0],
+    [11, "md", "MD Tag 3", 1], [11, "whatsapp", "Wochenimpuls", 0], [12, "md", "MD Tag 4", 1], [13, "md", "MD Tag 5", 1],
+    [14, "md", "MD Tag 6 · Live Call", 1], [15, "md", "MD Tag 7", 1], [16, "md", "MD Tag 8", 1], [17, "md", "MD Tag 9", 1],
+    [18, "md", "MD Tag 10", 1], [18, "youtube", "Video: Selbstwert", 0], [18, "whatsapp", "Wochenimpuls", 0],
+    [19, "md", "MD Tag 11", 1], [20, "md", "MD Tag 12 · Live Call", 1], [20, "tiktok", "Behind the Scenes", 0],
+    [21, "event", "Speaker: Messe (extern)", 1], [23, "linkedin", "Post: Selbstwert", 0], [24, "newsletter", "Newsletter #47", 0],
+    [25, "whatsapp", "Erinnerung Webinar", 0], [26, "event", "Academy-Webinar", 1], [26, "instagram", "Live-Story", 0],
+    [28, "instagram", "Recap-Karussell", 0], [28, "facebook", "Danke-Post", 0], [30, "youtube", "Short", 0],
+    [30, "intern", "GL-Meeting", 1]
   ];
   var clashes = { 10: "2 Mails" };
   var hidden = {};
