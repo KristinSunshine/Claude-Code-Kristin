@@ -843,7 +843,7 @@ details.panel[open] > summary { margin-bottom: 12px; }
 
   function filesBlock(files) {
     var h = '<div class="stack"><h3>Dateien</h3><div class="stack" id="files">' + (files || []).map(fileRow).join("") + "</div>";
-    if (S.assets) h += '<div class="row"><input type="file" id="file-up"><span class="small muted" id="file-note"></span></div>';
+    if (S.assets) h += '<div class="row"><input type="file" id="file-up"><span class="small muted" id="file-note"></span></div><p class="small muted">Reagiert der Button nicht? In der Claude-App auf dem Handy ist das Hochladen von Dateien nicht immer möglich. Öffne den Planer dann im Browser am Laptop (claude.ai).</p>';
     else h += '<p class="small muted">Dateien hochladen kann nur, wer den Planer bearbeiten darf (Kristin). Einen Link zur Datei kannst du in den Notizen ablegen.</p>';
     return h + "</div>";
   }
