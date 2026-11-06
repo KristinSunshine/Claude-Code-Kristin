@@ -180,6 +180,11 @@ dialog::backdrop { background: rgb(20 16 26 / 0.45); }
 .checkline { display: flex; gap: 8px; align-items: center; }
 .checkline input[type=text] { flex: 1; }
 
+.views { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; font-size: 0.88rem; background: var(--surface); }
+.views button { all: unset; cursor: pointer; padding: 6px 14px; color: var(--muted); font-weight: 500; }
+.views button.on { background: var(--fg); color: var(--bg); }
+.views button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.bulkbar { border-top: 1px solid var(--line); padding-top: 10px; }
 .toast { position: fixed; z-index: 50; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 8px; font-size: 0.9rem; max-width: calc(100vw - 32px); }
 .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
 .kpi { padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); display: grid; gap: 2px; }
@@ -213,6 +218,7 @@ details.panel[open] > summary { margin-bottom: 12px; }
     view: "heute", cal: null, hidden: {}, table: { sort: "date", dir: 1, ch: "", st: "", p: "", q: "" },
     draft: { text: "", busy: false, proposal: null, error: "" },
     freq: { busy: false, text: "" }, pillarAi: { text: "", busy: false, result: null },
+    planMode: "neu", change: { scope: "", text: "", busy: false, proposal: null, error: "" }, notices: [], sel: {},
     dirty: false
   };
   var STATUS = [["idee", "Idee"], ["arbeit", "in Arbeit"], ["review", "zur Freigabe"], ["frei", "freigegeben"], ["live", "veröffentlicht"]];
@@ -318,7 +324,7 @@ details.panel[open] > summary { margin-bottom: 12px; }
       S.config = snap.exists ? Object.assign(clone(DEFAULT_CONFIG), clone(snap.data())) : null;
       S.loaded.config = true; schedule();
     }, function (e) { clearTimeout(timer); S.loaded.config = true; console.warn(e); schedule(); });
-    coll("people", "people"); coll("items", "items"); coll("events", "events"); coll("series", "series"); coll("knowledge", "knowledge");
+    coll("people", "people"); coll("items", "items"); coll("events", "events"); coll("series", "series"); coll("knowledge", "knowledge"); coll("notices", "notices");
     if (S.uid) {
       S.db.doc("data/users/" + S.uid + "/profile").onSnapshot(function (snap) {
         S.lastSeen = snap.exists ? (snap.data().lastSeen || 0) : 0; schedule();
@@ -345,7 +351,7 @@ details.panel[open] > summary { margin-bottom: 12px; }
   }
 
   // ---------- Routing ----------
-  var VIEWS = [["heute", "Heute"], ["kalender", "Kalender"], ["tabelle", "Tabelle"], ["themen", "Themenbaum"], ["eingabe", "Neu planen"], ["events", "Events & Serien"], ["wissen", "Wissensbasis"], ["einstellungen", "Einstellungen"]];
+  var VIEWS = [["heute", "Heute"], ["kalender", "Kalender"], ["tabelle", "Tabelle"], ["themen", "Themenbaum"], ["eingabe", "Planen & ändern"], ["events", "Events & Serien"], ["wissen", "Wissensbasis"], ["einstellungen", "Einstellungen"]];
   function route() { var h = (location.hash || "").replace("#", ""); S.view = VIEWS.some(function (v) { return v[0] === h; }) ? h : "heute"; }
   window.addEventListener("hashchange", function () { route(); render(true); });
 
@@ -357,9 +363,48 @@ details.panel[open] > summary { margin-bottom: 12px; }
       var fresh = (i.updatedAt || 0) > S.lastSeen && (!i.updatedBy || i.updatedBy !== S.uid);
       if (!fresh) return;
       if (i.assignee === m.id) out.push({ it: i, why: i.status === "arbeit" && i.lastComment ? "Rückmeldung zu deiner Aufgabe" : "Neu oder geändert" });
-      else if (m.canApprove && i.status === "review") out.push({ it: i, why: "Wartet auf Freigabe" });
+      else if (m.canApprove && i.status === "review") out.push({ it: i, why: "Wartet auf Freigabe", at: i.updatedAt || 0 });
     });
-    return out.sort(function (a, b) { return (b.it.updatedAt || 0) - (a.it.updatedAt || 0); });
+    out.forEach(function (n) { if (n.at == null) n.at = n.it.updatedAt || 0; });
+    S.notices.forEach(function (n) { if (n.person === m.id && (n.at || 0) > S.lastSeen && n.by !== S.uid) out.push({ notice: n, at: n.at }); });
+    return out.sort(function (a, b) { return b.at - a.at; });
+  }
+  function noticeLine(n) { return '<div class="li" style="cursor:default"><span class="d">' + esc(new Date(n.at).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })) + '</span><div class="t"><b>' + esc(n.text) + "</b><span>" + esc(n.detail || "") + '</span></div><span class="status">Hinweis</span></div>'; }
+
+  // Delete items and tell the assignee, so a removed task doesn't silently vanish
+  async function deleteItems(ids, why) {
+    var m = me();
+    for (var k = 0; k < ids.length; k++) {
+      var it = S.items.find(function (x) { return x.id === ids[k]; }); if (!it) continue;
+      S.items = S.items.filter(function (x) { return x.id !== it.id; });
+      await delDoc("items/" + it.id);
+      if (it.assignee && (!m || it.assignee !== m.id) && it.status !== "live") {
+        var nid = uidGen("n");
+        await setDoc("notices/" + nid, { person: it.assignee, text: "Entfällt: " + (it.title || "Beitrag") + " (" + fmt(it.date) + ")", detail: why || "", at: Date.now(), by: S.uid || null }).catch(function () {});
+      }
+    }
+    render();
+  }
+  async function updateItems(list) { for (var k = 0; k < list.length; k++) await saveItem(list[k]); }
+  function shiftItem(it, days) { var c = clone(it); if (validDate(c.date)) c.date = addDays(c.date, days); if (validDate(c.due)) c.due = addDays(c.due, days); return c; }
+  function dayDiff(a, b) { return Math.round((parse(b) - parse(a)) / 864e5); }
+
+  // Bulk editing block: checkboxes plus one action bar
+  function bulkBar(box) {
+    return '<div class="row bulkbar" data-box="' + box + '"><span class="small muted" data-bulk-count></span>' +
+      '<label class="row small">um <input type="number" data-bulk-n value="7" style="width:70px"> Tage <button type="button" class="btn ghost sm" data-act="bulk" data-op="shift" data-box="' + box + '">verschieben</button></label>' +
+      '<label class="row small"><select data-bulk-p style="width:auto">' + peopleOptions("") + '</select><button type="button" class="btn ghost sm" data-act="bulk" data-op="assign" data-box="' + box + '">zuweisen</button></label>' +
+      '<label class="row small"><select data-bulk-s style="width:auto">' + STATUS.map(function (s) { return '<option value="' + s[0] + '">' + s[1] + "</option>"; }).join("") + '</select><button type="button" class="btn ghost sm" data-act="bulk" data-op="status" data-box="' + box + '">Status setzen</button></label>' +
+      '<button type="button" class="btn danger sm" data-act="bulk" data-op="delete" data-box="' + box + '">Löschen</button></div>';
+  }
+  function bulkSelected(box) {
+    if (box === "tbl") return Object.keys(S.sel).filter(function (id) { return S.sel[id] && S.items.some(function (i) { return i.id === id; }); });
+    return $$('[data-bulk-item="' + box + '"]').filter(function (c) { return c.checked; }).map(function (c) { return c.value; });
+  }
+  function bulkList(items, box) {
+    return '<div class="stack" data-bulk-box="' + box + '"><div class="row small"><button type="button" class="iconbtn" data-act="bulk-all" data-box="' + box + '" data-v="1">alle</button><button type="button" class="iconbtn" data-act="bulk-all" data-box="' + box + '" data-v="0">keine</button></div><div class="list">' +
+      items.map(function (i) { return '<div class="row" style="flex-wrap:nowrap;align-items:start"><input type="checkbox" data-bulk-item="' + box + '" value="' + esc(i.id) + '" aria-label="auswählen" style="margin-top:14px"><div style="flex:1;min-width:0">' + itemLine(i, pName(i.assignee)) + "</div></div>"; }).join("") +
+      "</div>" + bulkBar(box) + "</div>";
   }
 
   // ---------- Render ----------
@@ -430,7 +475,7 @@ details.panel[open] > summary { margin-bottom: 12px; }
       '<div class="kpi"><b>' + clashes.length + '</b><span>Tage mit 2+ Mails (30 Tage)</span></div></div>';
     h += '<div class="grid2">';
     h += '<section class="panel stack"><div class="row" style="justify-content:space-between"><h2>Mitteilungen</h2>' + (notes.length ? '<button class="btn ghost sm" data-act="seen">Alle gelesen</button>' : "") + "</div>" +
-      (notes.length ? '<div class="list">' + notes.slice(0, 12).map(function (n) { return itemLine(n.it, n.why); }).join("") + "</div>" : '<p class="muted small">Nichts Neues seit deinem letzten Besuch.</p>') + "</section>";
+      (notes.length ? '<div class="list">' + notes.slice(0, 15).map(function (n) { return n.notice ? noticeLine(n.notice) : itemLine(n.it, n.why); }).join("") + "</div>" : '<p class="muted small">Nichts Neues seit deinem letzten Besuch.</p>') + "</section>";
     if (m && m.canApprove) h += '<section class="panel stack"><h2>Zur Freigabe</h2>' + (review.length ? '<div class="list">' + review.map(function (i) { return itemLine(i, pName(i.assignee)); }).join("") + "</div>" : '<p class="muted small">Gerade wartet nichts auf Freigabe.</p>') + "</section>";
     h += '<section class="panel stack"><h2>Meine Aufgaben</h2>' + (!m ? '<p class="muted small">Wähle oben deinen Namen, dann erscheinen hier deine Aufgaben.</p>' :
       (overdue.length ? '<h3 class="overdue">Überfällig</h3><div class="list">' + overdue.map(function (i) { return itemLine(i); }).join("") + "</div>" : "") +
@@ -510,16 +555,21 @@ details.panel[open] > summary { margin-bottom: 12px; }
       '<label class="f">Kanal<select id="t-ch"><option value="">Alle</option>' + cfg().channels.map(function (c) { return '<option value="' + esc(c.id) + '"' + (T.ch === c.id ? " selected" : "") + ">" + esc(c.name) + "</option>"; }).join("") + "</select></label>" +
       '<label class="f">Status<select id="t-st"><option value="">Alle</option>' + STATUS.map(function (s) { return '<option value="' + s[0] + '"' + (T.st === s[0] ? " selected" : "") + ">" + s[1] + "</option>"; }).join("") + "</select></label>" +
       '<label class="f">Zuständig<select id="t-p"><option value="">Alle</option>' + S.people.map(function (p) { return '<option value="' + esc(p.id) + '"' + (T.p === p.id ? " selected" : "") + ">" + esc(p.name) + "</option>"; }).join("") + "</select></label></div>";
-    h += '<div class="scroll-x"><table class="tbl"><thead><tr>' + th("date", "Datum") + th("due", "Abgabe") + th("channel", "Kanal") + "<th>Format</th>" + th("title", "Titel") + th("topic", "Thema") + th("campaign", "Kampagne") + th("assignee", "Zuständig") + th("status", "Status") + "</tr></thead><tbody>";
-    if (!rows.length) h += '<tr><td colspan="9" class="muted">Keine Einträge. Lege einen Beitrag an oder plane über „Neu planen“.</td></tr>';
+    var selN = bulkSelected("tbl").length;
+    if (selN) h += '<div class="panel" style="background:var(--sunken)"><b>' + selN + " ausgewählt</b> " + bulkBar("tbl") + "</div>";
+    h += '<div class="scroll-x"><table class="tbl"><thead><tr><th><input type="checkbox" id="t-all" aria-label="alle auswählen"' + (rows.length && rows.every(function (i) { return S.sel[i.id]; }) ? " checked" : "") + "></th>" + th("date", "Datum") + th("due", "Abgabe") + th("channel", "Kanal") + "<th>Format</th>" + th("title", "Titel") + th("topic", "Thema") + th("campaign", "Kampagne") + th("assignee", "Zuständig") + th("status", "Status") + "</tr></thead><tbody>";
+    after.tableRows = rows.map(function (i) { return i.id; });
+    if (!rows.length) h += '<tr><td colspan="10" class="muted">Keine Einträge. Lege einen Beitrag an oder plane über „Neu planen“.</td></tr>';
     rows.forEach(function (i) {
       var tp = topic(i.topic), late = i.date && i.date < today() && i.status !== "live";
-      h += '<tr class="click" data-act="open-item" data-id="' + esc(i.id) + '"><td class="mono' + (late ? " overdue" : "") + '">' + fmt(i.date) + '</td><td class="mono">' + fmt(i.due) + "</td><td>" + chip(chColor(i.channel), chName(i.channel)) + "</td><td>" + esc(i.format || "") + "</td><td>" + esc(i.title || "") + "</td><td>" + (tp ? esc(tp.topic.name) + '<br><span class="small muted">' + esc(tp.pillar.name) + "</span>" : '<span class="muted">–</span>') + "</td><td>" + esc(i.campaign || "–") + "</td><td>" + esc(pName(i.assignee)) + "</td><td>" + statusBadge(i.status) + "</td></tr>";
+      h += '<tr class="click" data-act="open-item" data-id="' + esc(i.id) + '"><td><input type="checkbox" data-tsel="' + esc(i.id) + '"' + (S.sel[i.id] ? " checked" : "") + ' aria-label="auswählen"></td><td class="mono' + (late ? " overdue" : "") + '">' + fmt(i.date) + '</td><td class="mono">' + fmt(i.due) + "</td><td>" + chip(chColor(i.channel), chName(i.channel)) + "</td><td>" + esc(i.format || "") + "</td><td>" + esc(i.title || "") + "</td><td>" + (tp ? esc(tp.topic.name) + '<br><span class="small muted">' + esc(tp.pillar.name) + "</span>" : '<span class="muted">–</span>') + "</td><td>" + esc(i.campaign || "–") + "</td><td>" + esc(pName(i.assignee)) + "</td><td>" + statusBadge(i.status) + "</td></tr>";
     });
     h += "</tbody></table></div></div>";
     return h;
   };
   after.tabelle = function () {
+    $$("[data-tsel]").forEach(function (c) { c.addEventListener("change", function () { S.sel[c.dataset.tsel] = c.checked; render(true); }); });
+    var all = $("#t-all"); if (all) all.addEventListener("change", function () { (after.tableRows || []).forEach(function (id) { S.sel[id] = all.checked; }); render(true); });
     ["q", "ch", "st", "p"].forEach(function (k) {
       var el = document.getElementById("t-" + k); if (!el) return;
       el.addEventListener(k === "q" ? "input" : "change", function () { S.table[k] = el.value; if (k !== "q") render(true); else { clearTimeout(after.tq); after.tq = setTimeout(function () { render(true); var q = document.getElementById("t-q"); if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }, 250); } });
@@ -568,9 +618,63 @@ details.panel[open] > summary { margin-bottom: 12px; }
   }
 
   // ----- Eingabe (KI) -----
-  V.eingabe = function () {
+  function modeTabs() {
+    return '<div class="views" role="tablist"><button type="button" role="tab" class="' + (S.planMode === "neu" ? "on" : "") + '" aria-selected="' + (S.planMode === "neu") + '" data-act="plan-mode" data-m="neu">Neu planen</button><button type="button" role="tab" class="' + (S.planMode === "aendern" ? "on" : "") + '" aria-selected="' + (S.planMode === "aendern") + '" data-act="plan-mode" data-m="aendern">Bestehendes ändern</button></div>';
+  }
+  function scopeOptions(sel) {
+    var t = today(), back = addDays(t, -60), h = '<option value="">Bitte wählen</option><option value="all"' + (sel === "all" ? " selected" : "") + ">Alle Beiträge der nächsten 8 Wochen</option>";
+    var evs = S.events.filter(function (e) { return (e.end || e.start || "") >= back; }).sort(function (a, b) { return (a.start || "").localeCompare(b.start || ""); });
+    if (evs.length) h += '<optgroup label="Events">' + evs.map(function (e) { var v = "ev:" + e.id; return '<option value="' + esc(v) + '"' + (v === sel ? " selected" : "") + ">" + esc(e.title + " · " + fmt(e.start)) + "</option>"; }).join("") + "</optgroup>";
+    var camps = []; S.items.forEach(function (i) { if (i.campaign && camps.indexOf(i.campaign) < 0 && (i.date || "") >= back) camps.push(i.campaign); });
+    if (camps.length) h += '<optgroup label="Kampagnen">' + camps.sort().map(function (c) { var v = "ca:" + c; return '<option value="' + esc(v) + '"' + (v === sel ? " selected" : "") + ">" + esc(c) + "</option>"; }).join("") + "</optgroup>";
+    return h;
+  }
+  function scopeData(scope) {
+    var t = today();
+    if (scope === "all") return { label: "alle Beiträge der nächsten 8 Wochen", event: null, items: S.items.filter(function (i) { return i.date >= t && i.date <= addDays(t, 56); }), campaign: "" };
+    if (scope.indexOf("ev:") === 0) {
+      var ev = S.events.find(function (e) { return e.id === scope.slice(3); }); if (!ev) return null;
+      return { label: "Event „" + ev.title + "“", event: ev, items: S.items.filter(function (i) { return i.eventId === ev.id || (i.campaign && i.campaign === ev.title); }), campaign: ev.title };
+    }
+    if (scope.indexOf("ca:") === 0) { var c = scope.slice(3); var ev2 = S.events.find(function (e) { return e.title === c; }) || null; return { label: "Kampagne „" + c + "“", event: ev2, items: S.items.filter(function (i) { return i.campaign === c || (ev2 && i.eventId === ev2.id); }), campaign: c }; }
+    return null;
+  }
+  V.eingabe = function () { return S.planMode === "aendern" ? changeView() : newPlanView(); };
+  function changeView() {
+    var C = S.change, sd = C.scope ? scopeData(C.scope) : null;
+    var h = '<div class="view-head"><div><h1>Bestehendes ändern</h1><p class="muted">Wähle ein Event oder eine Kampagne und schreib, was sich ändert. Die KI zeigt dir eine Vorschau. Erst wenn du bestätigst, wird umgesetzt, und die Betroffenen sehen die Änderung unter „Heute“.</p></div>' + modeTabs() + "</div>";
+    h += '<div class="panel stack"><label class="f" style="max-width:520px">Was willst du ändern?<select id="c-scope">' + scopeOptions(C.scope) + "</select></label>";
+    if (sd) h += '<p class="small muted">' + esc(sd.label) + ": " + sd.items.length + " Beiträge" + (sd.event ? " · Event am " + fmt(sd.event.start) : "") + "</p>";
+    h += '<label class="f">Was ändert sich?<textarea id="c-text" rows="5" placeholder="Beispiel: Wir posten doch nicht auf Instagram, nimm das alles raus. Das Webinar verschiebt sich auf den 3.12., alles andere soll mitwandern. Den Newsletter-Teaser übernimmt Laura.">' + esc(C.text) + "</textarea></label>" +
+      '<div class="row"><button class="btn accent" data-act="change-ai"' + (C.busy || !S.sample || !sd ? " disabled" : "") + ">" + (C.busy ? "Denkt nach …" : "Änderungen vorschlagen") + "</button>" + (C.proposal ? '<button class="btn ghost" data-act="change-clear">Verwerfen</button>' : "") +
+      (!S.sample ? '<span class="small muted">KI ist in dieser Ansicht nicht verfügbar. Einzelne Beiträge kannst du im Event-Fenster per Häkchen gemeinsam bearbeiten.</span>' : "") + "</div>" +
+      (C.busy ? '<p class="thinking">Die KI prüft den Plan. Das dauert meist 20 bis 60 Sekunden.</p>' : "") + (C.error ? '<p class="overdue small">' + esc(C.error) + "</p>" : "") + "</div>";
+    var P = C.proposal;
+    if (P) {
+      h += '<div class="panel stack"><div class="row" style="justify-content:space-between"><h2>Vorschau der Änderungen</h2><span class="small muted">Zeilen ohne Haken werden nicht umgesetzt.</span></div>';
+      if (!P.rows.length) h += '<p class="muted">Die KI hat keine Änderungen gefunden. Formuliere es gern genauer.</p>';
+      else {
+        h += '<div class="scroll-x"><table style="min-width:760px"><thead><tr><th></th><th>Art</th><th>Datum</th><th>Kanal</th><th>Beitrag</th><th>Was passiert</th></tr></thead><tbody>';
+        P.rows.forEach(function (r, k) {
+          var badge = { del: '<span class="status" style="color:var(--bad);border-color:currentColor;background:var(--bad-bg)">Löschen</span>', upd: '<span class="status st-arbeit">Ändern</span>', add: '<span class="status st-frei">Neu</span>', ev: '<span class="status st-review">Event</span>' }[r.type];
+          h += '<tr><td><input type="checkbox" data-crow="' + k + '"' + (r.on ? " checked" : "") + ' aria-label="umsetzen"></td><td>' + badge + '</td><td class="mono">' + esc(r.dateLabel || "") + "</td><td>" + (r.channel !== undefined ? chip(chColor(r.channel), chName(r.channel)) : "") + "</td><td>" + esc(r.title || "") + "</td><td>" + esc(r.what || "") + (r.warn ? '<br><span class="small overdue">' + esc(r.warn) + "</span>" : "") + "</td></tr>";
+        });
+        h += "</tbody></table></div>";
+      }
+      if ((P.hinweise || []).length) h += '<div class="ai-out"><b>Hinweise der KI</b>\n' + P.hinweise.map(function (x) { return "• " + esc(x); }).join("\n") + "</div>";
+      if (P.rows.length) h += '<div class="row"><button class="btn ok" data-act="change-confirm"' + (S.readonly ? " disabled" : "") + ">Änderungen umsetzen</button></div>";
+      h += "</div>";
+    }
+    return h;
+  }
+  after.changeView = function () {
+    var sc = $("#c-scope"); if (sc) sc.addEventListener("change", function () { S.change.scope = sc.value; S.change.proposal = null; render(true); });
+    var ta = $("#c-text"); if (ta) ta.addEventListener("input", function () { S.change.text = ta.value; });
+    $$("[data-crow]").forEach(function (c) { c.addEventListener("change", function () { S.change.proposal.rows[Number(c.dataset.crow)].on = c.checked; }); });
+  };
+  function newPlanView() {
     var D = S.draft;
-    var h = '<div class="view-head"><div><h1>Neu planen</h1><p class="muted">Schreib in normalen Worten, was ansteht und was ihr dafür braucht. Die KI schlägt Beiträge, Termine und Zuständige vor. Du prüfst und bestätigst. Erst dann sieht das Team die Aufgaben.</p></div></div>';
+    var h = '<div class="view-head"><div><h1>Neu planen</h1><p class="muted">Schreib in normalen Worten, was ansteht und was ihr dafür braucht. Die KI schlägt Beiträge, Termine und Zuständige vor. Du prüfst und bestätigst. Erst dann sieht das Team die Aufgaben.</p></div>' + modeTabs() + "</div>";
     h += '<div class="panel stack"><label class="f">Was steht an?<textarea id="d-text" rows="6" placeholder="Beispiel: Am 26.11. haben wir das Academy-Webinar „Selbstwert“. Wir brauchen eine Ankündigungsgrafik, Posts auf Instagram und in der Facebook-Gruppe, einen Teaser im Newsletter und eine Erinnerung im WhatsApp-Kanal. Danach einen Recap.">' + esc(D.text) + "</textarea></label>" +
       '<div class="row"><button class="btn accent" data-act="draft-ai"' + (D.busy || !S.sample ? " disabled" : "") + ">" + (D.busy ? "Denkt nach …" : "Vorschlag erstellen") + "</button>" + (D.proposal ? '<button class="btn ghost" data-act="draft-clear">Neu beginnen</button>' : "") +
       (!S.sample ? '<span class="small muted">KI ist in dieser Ansicht nicht verfügbar. Du kannst Beiträge im Kalender von Hand anlegen.</span>' : "") + "</div>" +
@@ -598,8 +702,9 @@ details.panel[open] > summary { margin-bottom: 12px; }
       h += '<div class="row"><button class="btn ok" data-act="draft-confirm"' + (S.readonly ? " disabled" : "") + '>Bestätigen & Team informieren</button><button class="btn ghost" data-act="draft-addrow">Zeile hinzufügen</button></div></div>';
     }
     return h;
-  };
+  }
   after.eingabe = function () {
+    if (S.planMode === "aendern") return after.changeView();
     var ta = $("#d-text"); if (ta) ta.addEventListener("input", function () { S.draft.text = ta.value; });
     $$(".prop tbody tr").forEach(function (tr) {
       var k = Number(tr.dataset.k);
@@ -794,9 +899,26 @@ details.panel[open] > summary { margin-bottom: 12px; }
     h += '<div class="stack"><h3>Checkliste</h3><div id="ev-check" class="stack">' + (ev.checklist || []).map(function (c, k) { return '<div class="checkline"><input type="checkbox" data-ck="' + k + '"' + (c.done ? " checked" : "") + ' aria-label="erledigt"><input type="text" data-ckt="' + k + '" value="' + esc(c.t) + '"></div>'; }).join("") +
       '</div><button type="button" class="btn ghost sm" data-act="ck-add" style="justify-self:start">Punkt hinzufügen</button></div>';
     if (isNew) h += '<label class="checkline"><input type="checkbox" id="ev-gen" checked> Beiträge aus den Schritten der Kategorie anlegen <span class="small muted">(Rückwärtsplanung ab Start)</span></label>';
-    else h += '<div class="stack"><h3>Beiträge zu diesem Event (' + linked.length + ')</h3>' + (linked.length ? '<div class="list">' + linked.map(function (i) { return itemLine(i, pName(i.assignee)); }).join("") + "</div>" : '<p class="small muted">Keine.</p>') + '<button type="button" class="btn ghost sm" data-act="ev-gen" style="justify-self:start">Schritte der Kategorie ergänzen</button></div>';
+    else {
+      h += '<label class="checkline" id="ev-shift-wrap" hidden><input type="checkbox" id="ev-shift" checked> <span id="ev-shift-txt"></span></label>';
+      h += '<div class="stack"><h3>Beiträge zu diesem Event (' + linked.length + ')</h3><p class="small muted">Häkchen setzen, um mehrere Beiträge auf einmal zu verschieben, zuzuweisen oder zu löschen.</p>' + (linked.length ? bulkList(linked, "ev") : '<p class="small muted">Keine.</p>') + '<div class="row"><button type="button" class="btn ghost sm" data-act="ev-gen">Schritte der Kategorie ergänzen</button><button type="button" class="btn ghost sm" data-act="ev-change">Mit KI ändern</button></div></div>';
+    }
     h += '<div class="dlg-foot"><div>' + (!isNew ? '<button type="button" class="btn danger sm" data-act="del-event">Löschen</button>' : "") + '</div><button type="button" class="btn" data-act="save-event"' + (S.readonly ? " disabled" : "") + ">Speichern</button></div></form>";
-    openDlg(h, function () { dlg.dataset.event = JSON.stringify(ev); });
+    openDlg(h, function () {
+      dlg.dataset.event = JSON.stringify(ev);
+      if (isNew) return;
+      var st = $("#ev-start"), en = $("#ev-end"), lastStart = ev.start;
+      var movable = linked.filter(function (i) { return i.status !== "live"; });
+      st.addEventListener("change", function () {
+        if (!validDate(st.value) || !validDate(ev.start)) return;
+        var d = dayDiff(ev.start, st.value);
+        if (validDate(en.value) && validDate(lastStart)) en.value = addDays(en.value, dayDiff(lastStart, st.value));
+        lastStart = st.value;
+        var wrap = $("#ev-shift-wrap");
+        wrap.hidden = !d || !movable.length;
+        $("#ev-shift-txt").textContent = "Die " + movable.length + " Beiträge um " + Math.abs(d) + " Tage " + (d > 0 ? "nach hinten" : "nach vorne") + " mitverschieben (bereits veröffentlichte bleiben)";
+      });
+    });
   }
   function readEventForm() {
     var ev = JSON.parse(dlg.dataset.event || "{}");
@@ -967,6 +1089,76 @@ details.panel[open] > summary { margin-bottom: 12px; }
     } catch (e) { /* toast already shown */ }
   }
 
+  async function runChangeAi() {
+    var C = S.change, sd = scopeData(C.scope);
+    if (!sd || !S.sample) return;
+    if (!C.text.trim()) { toast("Bitte beschreiben, was sich ändert."); return; }
+    C.busy = true; C.error = ""; C.proposal = null; render(true);
+    var list = sd.items.slice().sort(function (a, b) { return (a.date || "").localeCompare(b.date || ""); }).map(function (i) {
+      return { id: i.id, date: i.date, due: i.due, channel: i.channel, format: i.format, title: i.title, assignee: i.assignee, status: i.status, brief: i.brief };
+    });
+    var prompt = "Du pflegst den Redaktionsplan von feelen. Die Bereichsleitung beschreibt eine Änderung an bestehenden Plänen. Setze sie als konkrete Änderungen um.\n\n" + planningContext() +
+      "\n\nBETROFFEN: " + sd.label + (sd.event ? "\nEVENT: " + JSON.stringify({ title: sd.event.title, start: sd.event.start, end: sd.event.end || "", mode: sd.event.mode, location: sd.event.location || "" }) : "") +
+      "\nBEITRÄGE (JSON, mit id):\n" + JSON.stringify(list) +
+      "\n\nÄNDERUNGSWUNSCH:\n" + C.text.trim() +
+      "\n\nREGELN:\n- Ändere nur, was der Wunsch verlangt oder was zwingend daraus folgt (z. B. Beiträge mitverschieben, wenn sich das Event verschiebt, mit gleichem Abstand zum Event).\n- Nutze nur ids aus der Liste. Nur Kanal-ids und Personen-ids aus den Listen oben.\n- Beiträge mit Status \"live\" sind schon veröffentlicht: nicht löschen oder verschieben, höchstens in hinweise erwähnen.\n- Wird ein Beitrag einem anderen Kanal zugeordnet, passe die Zuständigkeit an.\n- Neue Beiträge nur, wenn der Wunsch es verlangt.\n- Schreibe auf Deutsch.\n\n" +
+      'Antworte nur mit JSON:\n{"event": null oder {"start":"YYYY-MM-DD","end":"YYYY-MM-DD oder leer","title":"…"},"loeschen":[{"id":"…","grund":"…"}],"aendern":[{"id":"…","date":"…","due":"…","channel":"…","assignee":"…","title":"…","format":"…","brief":"…"}],"neu":[{"date":"…","due":"…","channel":"…","format":"…","title":"…","assignee":"…","brief":"…"}],"hinweise":["…"]}\nBei "aendern" nur die Felder angeben, die sich ändern.';
+    try {
+      var r = await S.sample.json(prompt, { modelTier: "default" });
+      var byId = {}; sd.items.forEach(function (i) { byId[i.id] = i; });
+      var chIds = cfg().channels.map(function (c) { return c.id; }), rows = [];
+      if (sd.event && r && r.event && (validDate(r.event.start) || r.event.title)) {
+        var ne = { start: validDate(r.event.start) ? r.event.start : sd.event.start, end: validDate(r.event.end) ? r.event.end : (r.event.end === "" ? "" : sd.event.end || ""), title: r.event.title ? String(r.event.title) : sd.event.title };
+        var parts = [];
+        if (ne.start !== sd.event.start) parts.push("Start " + fmt(sd.event.start) + " → " + fmt(ne.start));
+        if ((ne.end || "") !== (sd.event.end || "")) parts.push("Ende " + fmt(sd.event.end) + " → " + fmt(ne.end));
+        if (ne.title !== sd.event.title) parts.push("Titel → " + ne.title);
+        if (parts.length) rows.push({ type: "ev", on: true, title: sd.event.title, dateLabel: fmt(sd.event.start), what: parts.join("; "), data: ne });
+      }
+      (r && Array.isArray(r.loeschen) ? r.loeschen : []).forEach(function (d) {
+        var it = d && byId[d.id]; if (!it) return;
+        rows.push({ type: "del", on: it.status !== "live", id: it.id, title: it.title, channel: it.channel, dateLabel: fmt(it.date), what: String(d.grund || "wird gelöscht") + (it.assignee && (!me() || me().id !== it.assignee) ? " · " + pName(it.assignee) + " wird informiert" : ""), warn: it.status === "live" ? "Schon veröffentlicht" : "" });
+      });
+      (r && Array.isArray(r.aendern) ? r.aendern : []).forEach(function (u) {
+        var it = u && byId[u.id]; if (!it) return;
+        var nu = clone(it), parts = [];
+        if (validDate(u.date) && u.date !== it.date) { nu.date = u.date; parts.push("Datum " + fmt(it.date) + " → " + fmt(u.date)); }
+        if (validDate(u.due) && u.due !== it.due) { nu.due = u.due; parts.push("Abgabe " + fmt(it.due) + " → " + fmt(u.due)); }
+        if (u.channel !== undefined && u.channel !== it.channel && (u.channel === "" || chIds.indexOf(u.channel) >= 0)) { nu.channel = u.channel; parts.push("Kanal " + chName(it.channel) + " → " + chName(u.channel)); }
+        if (u.assignee && u.assignee !== it.assignee && person(u.assignee)) { nu.assignee = u.assignee; parts.push("Zuständig " + pName(it.assignee) + " → " + pName(u.assignee)); }
+        if (u.title && u.title !== it.title) { nu.title = String(u.title); parts.push("Titel → " + u.title); }
+        if (u.format !== undefined && u.format !== it.format) { nu.format = String(u.format); parts.push("Format → " + u.format); }
+        if (u.brief && u.brief !== it.brief) { nu.brief = String(u.brief); parts.push("Briefing angepasst"); }
+        if (!parts.length) return;
+        rows.push({ type: "upd", on: it.status !== "live", id: it.id, title: it.title, channel: nu.channel, dateLabel: fmt(nu.date), what: parts.join("; "), warn: it.status === "live" ? "Schon veröffentlicht" : (["frei", "review"].indexOf(it.status) >= 0 ? "War schon " + (it.status === "frei" ? "freigegeben" : "zur Freigabe") + ", geht zurück auf „in Arbeit“" : ""), data: nu });
+      });
+      (r && Array.isArray(r.neu) ? r.neu : []).forEach(function (n) {
+        if (!n || !validDate(n.date)) return;
+        var ch = chIds.indexOf(n.channel) >= 0 ? n.channel : "";
+        var it = { id: uidGen("i"), kind: ch ? "post" : "task", title: String(n.title || "Beitrag"), channel: ch, format: String(n.format || ""), date: n.date, due: validDate(n.due) ? n.due : addDays(n.date, -(cfg().reviewDays || 0)),
+          assignee: person(n.assignee) ? n.assignee : assigneeFor(ch, n.date), status: "idee", topic: "", campaign: sd.campaign, eventId: sd.event ? sd.event.id : "", brief: String(n.brief || ""), copy: "", link: "", comments: [], createdBy: S.uid || null };
+        rows.push({ type: "add", on: true, title: it.title, channel: ch, dateLabel: fmt(it.date), what: "Neu · " + pName(it.assignee), data: it });
+      });
+      C.proposal = { rows: rows, hinweise: r && Array.isArray(r.hinweise) ? r.hinweise.map(String).slice(0, 10) : [] };
+    } catch (e) { C.error = aiErr(e); }
+    C.busy = false; render(true);
+  }
+  async function confirmChange() {
+    var C = S.change, P = C.proposal, sd = scopeData(C.scope); if (!P) return;
+    var rows = P.rows.filter(function (r) { return r.on; }); if (!rows.length) { toast("Keine Zeile ausgewählt."); return; }
+    try {
+      var evRow = rows.find(function (r) { return r.type === "ev"; });
+      if (evRow && sd && sd.event) { var ev = clone(sd.event); ev.start = evRow.data.start; ev.end = evRow.data.end; ev.title = evRow.data.title; await saveEvent(ev); }
+      var upd = rows.filter(function (r) { return r.type === "upd"; }).map(function (r) { var d = clone(r.data); if (["frei", "review"].indexOf(d.status) >= 0) d.status = "arbeit"; return d; });
+      await updateItems(upd);
+      await updateItems(rows.filter(function (r) { return r.type === "add"; }).map(function (r) { return r.data; }));
+      var dels = rows.filter(function (r) { return r.type === "del"; }).map(function (r) { return r.id; });
+      if (dels.length) await deleteItems(dels, "Geändert: " + C.text.trim().slice(0, 140));
+      toast("Umgesetzt: " + rows.length + " Änderungen. Die Betroffenen sehen es unter „Heute“.");
+      S.change = { scope: C.scope, text: "", busy: false, proposal: null, error: "" }; render(true);
+    } catch (e) {}
+  }
+
   var copyCtl = null;
   async function runCopyAi() {
     if (!S.sample) return;
@@ -1067,7 +1259,7 @@ details.panel[open] > summary { margin-bottom: 12px; }
     },
     "del-item": function (el) {
       if (el.dataset.confirm !== "1") { el.dataset.confirm = "1"; el.textContent = "Wirklich löschen?"; return; }
-      var id = el.dataset.id; S.items = S.items.filter(function (x) { return x.id !== id; }); delDoc("items/" + id).catch(function () {}); closeDlg(); render();
+      var id = el.dataset.id; closeDlg(); deleteItems([id], "").catch(function () {});
     },
     "copy-ai": runCopyAi,
     "new-event": function () { openEvent(null); },
@@ -1075,9 +1267,49 @@ details.panel[open] > summary { margin-bottom: 12px; }
     "ck-add": function () { var box = $("#ev-check"), k = $$("[data-ckt]", dlg).length; box.insertAdjacentHTML("beforeend", '<div class="checkline"><input type="checkbox" data-ck="' + k + '" aria-label="erledigt"><input type="text" data-ckt="' + k + '" value=""></div>'); $('[data-ckt="' + k + '"]', dlg).focus(); },
     "save-event": async function () {
       var ev = readEventForm(), gen = $("#ev-gen"), doGen = gen && gen.checked;
+      var old = S.events.find(function (x) { return x.id === ev.id; });
+      var sh = $("#ev-shift"), d = old && validDate(old.start) && validDate(ev.start) ? dayDiff(old.start, ev.start) : 0;
+      var doShift = d && sh && sh.checked && !$("#ev-shift-wrap").hidden;
       closeDlg();
-      try { await saveEvent(ev); var items = doGen ? generateFromCategory(ev) : []; for (var k = 0; k < items.length; k++) await saveItem(items[k]); toast(items.length ? "Event und " + items.length + " Beiträge angelegt" : "Gespeichert"); } catch (e) {}
+      try {
+        await saveEvent(ev);
+        if (doShift) {
+          var moved = S.items.filter(function (i) { return i.eventId === ev.id && i.status !== "live"; }).map(function (i) { return shiftItem(i, d); });
+          await updateItems(moved); toast("Event und " + moved.length + " Beiträge verschoben"); return;
+        }
+        var items = doGen ? generateFromCategory(ev) : []; for (var k = 0; k < items.length; k++) await saveItem(items[k]);
+        toast(items.length ? "Event und " + items.length + " Beiträge angelegt" : "Gespeichert");
+      } catch (e) {}
     },
+    "bulk-all": function (el) { $$('[data-bulk-item="' + el.dataset.box + '"]').forEach(function (c) { c.checked = el.dataset.v === "1"; }); },
+    "bulk": async function (el) {
+      var box = el.dataset.box, op = el.dataset.op, ids = bulkSelected(box);
+      if (!ids.length) { toast("Bitte zuerst Beiträge auswählen."); return; }
+      var bar = el.closest(".bulkbar"), items = S.items.filter(function (i) { return ids.indexOf(i.id) >= 0; });
+      var evId = box === "ev" ? JSON.parse(dlg.dataset.event || "{}").id : null;
+      try {
+        if (op === "delete") {
+          if (el.dataset.confirm !== "1") { el.dataset.confirm = "1"; el.textContent = ids.length + " wirklich löschen?"; return; }
+          await deleteItems(ids, "Gelöscht in der Sammelbearbeitung"); toast(ids.length + " gelöscht");
+        } else if (op === "shift") {
+          var n = Number($("[data-bulk-n]", bar).value) || 0; if (!n) return;
+          await updateItems(items.map(function (i) { return shiftItem(i, n); })); toast(ids.length + " um " + n + " Tage verschoben");
+        } else if (op === "assign") {
+          var p = $("[data-bulk-p]", bar).value;
+          await updateItems(items.map(function (i) { var c = clone(i); c.assignee = p; return c; })); toast(ids.length + " zugewiesen an " + pName(p));
+        } else if (op === "status") {
+          var s = $("[data-bulk-s]", bar).value, m = me();
+          if (s === "frei" && !(m && m.canApprove)) { toast("Freigeben dürfen nur Personen mit Freigabe-Recht."); return; }
+          await updateItems(items.map(function (i) { var c = clone(i); c.status = s; return c; })); toast("Status geändert");
+        }
+      } catch (e) { return; }
+      if (box === "tbl") { S.sel = {}; render(true); } else if (evId) openEvent(evId);
+    },
+    "ev-change": function () { var ev = JSON.parse(dlg.dataset.event || "{}"); closeDlg(); S.planMode = "aendern"; S.change.scope = "ev:" + ev.id; S.change.proposal = null; location.hash = "#eingabe"; render(true); },
+    "plan-mode": function (el) { S.planMode = el.dataset.m; render(true); },
+    "change-ai": runChangeAi,
+    "change-clear": function () { S.change = { scope: S.change.scope, text: "", busy: false, proposal: null, error: "" }; render(true); },
+    "change-confirm": confirmChange,
     "ev-gen": async function () { var ev = readEventForm(); var items = generateFromCategory(ev); closeDlg(); try { await saveEvent(ev); for (var k = 0; k < items.length; k++) await saveItem(items[k]); toast(items.length ? items.length + " Beiträge ergänzt" : "Alle Schritte sind schon angelegt."); } catch (e) {} },
     "del-event": function (el) {
       if (el.dataset.confirm !== "1") { el.dataset.confirm = "1"; el.textContent = "Event löschen? Beiträge bleiben."; return; }
@@ -1143,6 +1375,7 @@ details.panel[open] > summary { margin-bottom: 12px; }
     var el = e.target.closest("[data-act]"); if (!el) return;
     var fn = A[el.dataset.act]; if (!fn) return;
     if (el.tagName === "A") return;
+    if (el !== e.target && e.target.closest("input, select, label, textarea") && el.contains(e.target.closest("input, select, label, textarea"))) return;
     e.preventDefault(); fn(el);
   });
   document.addEventListener("keydown", function (e) {
