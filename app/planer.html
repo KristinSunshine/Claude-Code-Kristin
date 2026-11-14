@@ -218,7 +218,7 @@ details.panel[open] > summary { margin-bottom: 12px; }
     view: "heute", cal: null, hidden: {}, table: { sort: "date", dir: 1, ch: "", st: "", p: "", q: "" },
     draft: { text: "", busy: false, proposal: null, error: "" },
     freq: { busy: false, text: "" }, pillarAi: { text: "", busy: false, result: null },
-    planMode: "neu", change: { scope: "", text: "", busy: false, proposal: null, error: "" }, notices: [], sel: {},
+    planMode: "neu", change: { scope: "", text: "", busy: false, proposal: null, error: "" }, notices: [], sel: {}, log: [], logFilter: { p: "", k: "" },
     dirty: false
   };
   var STATUS = [["idee", "Idee"], ["arbeit", "in Arbeit"], ["review", "zur Freigabe"], ["frei", "freigegeben"], ["live", "veröffentlicht"]];
@@ -303,12 +303,79 @@ details.panel[open] > summary { margin-bottom: 12px; }
   }
   function setDoc(path, data) { if (!S.db) { toast("Keine Verbindung zur Datenbank."); return Promise.reject(); } return S.db.doc(path).set(data).catch(function (e) { handleWriteError(e); throw e; }); }
   function delDoc(path) { if (!S.db) return Promise.reject(); return S.db.doc(path).delete().catch(function (e) { handleWriteError(e); throw e; }); }
-  function saveConfig(c) { S.config = c; render(); return setDoc("config/main", c); }
-  function saveItem(it) { stamp(it); var i = S.items.findIndex(function (x) { return x.id === it.id; }); if (i >= 0) S.items[i] = it; else S.items.push(it); render(); var body = clone(it); delete body.id; return setDoc("items/" + it.id, body); }
-  function saveEvent(ev) { stamp(ev); var body = clone(ev); delete body.id; return setDoc("events/" + ev.id, body); }
-  function savePerson(p) { var body = clone(p); delete body.id; return setDoc("people/" + p.id, body); }
-  function saveSeries(s) { stamp(s); var body = clone(s); delete body.id; return setDoc("series/" + s.id, body); }
-  function saveKnowledge(k) { stamp(k); var body = clone(k); delete body.id; return setDoc("knowledge/" + k.id, body); }
+  function saveConfig(c) {
+    var old = S.config || DEFAULT_CONFIG, what = [];
+    if (JSON.stringify(old.channels) !== JSON.stringify(c.channels) || JSON.stringify(old.mailChannels) !== JSON.stringify(c.mailChannels)) what.push("Kanäle");
+    if (JSON.stringify(old.categories) !== JSON.stringify(c.categories)) what.push("Event-Kategorien");
+    if (JSON.stringify(old.pillars) !== JSON.stringify(c.pillars)) what.push("Themenbaum");
+    if (JSON.stringify(old.colors) !== JSON.stringify(c.colors) || old.reviewDays !== c.reviewDays) what.push("Farben und Fristen");
+    S.config = c; render();
+    if (what.length) addLog("config", "geändert", "", "Einstellungen", what.join(", ") + " angepasst");
+    return setDoc("config/main", c);
+  }
+  function saveItem(it) {
+    var old = S.items.find(function (x) { return x.id === it.id; });
+    stamp(it); var i = S.items.findIndex(function (x) { return x.id === it.id; }); if (i >= 0) S.items[i] = it; else S.items.push(it); render();
+    if (!old) addLog("item", "neu", it.id, it.title, [chName(it.channel), fmt(it.date), pName(it.assignee)].join(" · "));
+    else { var d = itemDiff(old, it); if (d) addLog("item", "geändert", it.id, it.title, d); }
+    var body = clone(it); delete body.id; return setDoc("items/" + it.id, body);
+  }
+  function saveEvent(ev) {
+    var old = S.events.find(function (x) { return x.id === ev.id; });
+    stamp(ev);
+    if (!old) addLog("event", "neu", ev.id, ev.title, fmt(ev.start) + (category(ev.categoryId) ? " · " + category(ev.categoryId).name : ""));
+    else { var d = diffFields(old, ev, [["title", "Titel"], ["start", "Start", fmt], ["end", "Ende", fmt], ["categoryId", "Kategorie", function (v) { var c = category(v); return c ? c.name : "–"; }], ["mode", "Format"], ["location", "Ort"], ["regLink", "Anmeldelink"], ["capacity", "Kapazität"], ["role", "Rolle"], ["notes", "Notizen", null, true], ["checklist", "Checkliste", null, true]]); if (d) addLog("event", "geändert", ev.id, ev.title, d); }
+    var body = clone(ev); delete body.id; return setDoc("events/" + ev.id, body);
+  }
+  function savePerson(p) {
+    var old = person(p.id);
+    if (!old) addLog("person", "neu", p.id, p.name, "Person im Team angelegt");
+    else { var d = diffFields(old, p, [["name", "Name"], ["role", "Aufgabe"], ["channels", "Kanäle", function (v) { return (v || []).map(chName).join(", ") || "keine"; }], ["mdChannels", "Kanäle während MD", function (v) { return (v || []).map(chName).join(", ") || "keine"; }], ["canApprove", "Freigabe", yesNo], ["isLead", "Stellvertretung", yesNo]]); if (d) addLog("person", "geändert", p.id, p.name, d); }
+    var body = clone(p); delete body.id; return setDoc("people/" + p.id, body);
+  }
+  function saveSeries(s) {
+    var old = S.series.find(function (x) { return x.id === s.id; });
+    stamp(s);
+    if (!old) addLog("series", "neu", s.id, s.name, "Start " + fmt(s.start) + " · " + (s.entries || []).length + " Einträge");
+    else { var d = diffFields(old, s, [["name", "Name"], ["start", "Start", fmt], ["entries", "Mails und Live Calls", null, true], ["notes", "Notizen", null, true], ["files", "Dateien", null, true]]); if (d) addLog("series", "geändert", s.id, s.name, d); }
+    var body = clone(s); delete body.id; return setDoc("series/" + s.id, body);
+  }
+  function saveKnowledge(k) {
+    var old = S.knowledge.find(function (x) { return x.id === k.id; });
+    stamp(k);
+    if (!old) addLog("knowledge", "neu", k.id, k.title, "Eintrag in der Wissensbasis");
+    else { var d = diffFields(old, k, [["title", "Titel"], ["kind", "Art"], ["channel", "Kanal", chName], ["text", "Text", null, true], ["files", "Dateien", null, true]]); if (d) addLog("knowledge", "geändert", k.id, k.title, d); }
+    var body = clone(k); delete body.id; return setDoc("knowledge/" + k.id, body);
+  }
+
+  // ---------- Change log ----------
+  function yesNo(v) { return v ? "ja" : "nein"; }
+  function diffFields(a, b, fields) {
+    var out = [];
+    fields.forEach(function (f) {
+      var k = f[0], va = a[k], vb = b[k];
+      var norm = function (v) { return v == null || v === "" || (Array.isArray(v) && !v.length) ? "" : JSON.stringify(v); };
+      if (va === undefined && (norm(vb) === "" || k === "mode")) return;
+      if (norm(va) === norm(vb)) return;
+      if (f[3]) { out.push(f[1] + " geändert"); return; }
+      var show = f[2] || function (v) { return v == null || v === "" ? "–" : String(v); };
+      out.push(f[1] + ": " + show(va) + " → " + show(vb));
+    });
+    return out.join("; ");
+  }
+  function itemDiff(a, b) {
+    var d = diffFields(a, b, [["title", "Titel"], ["channel", "Kanal", chName], ["format", "Format"], ["date", "Datum", fmt], ["due", "Abgabe", fmt], ["assignee", "Zuständig", pName],
+      ["status", "Status", function (v) { var s = STATUS.find(function (x) { return x[0] === v; }); return s ? s[1] : v; }], ["topic", "Thema", function (v) { var t = topic(v); return t ? t.topic.name : "–"; }],
+      ["campaign", "Kampagne"], ["brief", "Briefing", null, true], ["copy", "Copy", null, true], ["link", "Entwurfslink", null, true]]);
+    if ((b.comments || []).length > (a.comments || []).length) d = (d ? d + "; " : "") + "Kommentar: " + String(b.comments[b.comments.length - 1].text || "").slice(0, 120);
+    return d;
+  }
+  function addLog(kind, action, ref, title, details) {
+    if (!S.db || S.readonly) return;
+    var m = me(), e = { at: Date.now(), by: m ? m.id : "", uid: S.uid || null, name: m ? m.name : (S.viewer && S.viewer.name) || "", kind: kind, action: action, ref: ref || "", title: String(title || "").slice(0, 200), details: String(details || "").slice(0, 1000) };
+    S.log.unshift(Object.assign({ id: "local" + e.at }, e));
+    S.db.doc("log/" + uidGen("l")).set(e).catch(function () {});
+  }
 
   // ---------- Boot ----------
   function bootDb() {
@@ -325,6 +392,9 @@ details.panel[open] > summary { margin-bottom: 12px; }
       S.loaded.config = true; schedule();
     }, function (e) { clearTimeout(timer); S.loaded.config = true; console.warn(e); schedule(); });
     coll("people", "people"); coll("items", "items"); coll("events", "events"); coll("series", "series"); coll("knowledge", "knowledge"); coll("notices", "notices");
+    S.db.collection("log").orderBy("at", "desc").limit(500).onSnapshot(function (snap) {
+      S.log = snap.docs.map(function (d) { var o = Object.assign({}, d.data()); o.id = d.id; return o; }); S.loaded.log = true; schedule();
+    }, function (e) { S.loaded.log = true; console.warn("log", e); schedule(); });
     if (S.uid) {
       S.db.doc("data/users/" + S.uid + "/profile").onSnapshot(function (snap) {
         S.lastSeen = snap.exists ? (snap.data().lastSeen || 0) : 0; schedule();
@@ -351,7 +421,7 @@ details.panel[open] > summary { margin-bottom: 12px; }
   }
 
   // ---------- Routing ----------
-  var VIEWS = [["heute", "Heute"], ["kalender", "Kalender"], ["tabelle", "Tabelle"], ["eingabe", "Planen & ändern"], ["events", "Events & Serien"], ["wissen", "Wissensbasis"], ["einstellungen", "Einstellungen"], ["themen", "Themenbaum"]];
+  var VIEWS = [["heute", "Heute"], ["kalender", "Kalender"], ["tabelle", "Tabelle"], ["eingabe", "Planen & ändern"], ["events", "Events & Serien"], ["wissen", "Wissensbasis"], ["einstellungen", "Einstellungen"], ["themen", "Themenbaum"], ["aenderungen", "Änderungen"]];
   function route() { var h = (location.hash || "").replace("#", ""); S.view = VIEWS.some(function (v) { return v[0] === h; }) ? h : "heute"; }
   window.addEventListener("hashchange", function () { route(); render(true); });
 
@@ -378,6 +448,7 @@ details.panel[open] > summary { margin-bottom: 12px; }
       var it = S.items.find(function (x) { return x.id === ids[k]; }); if (!it) continue;
       S.items = S.items.filter(function (x) { return x.id !== it.id; });
       await delDoc("items/" + it.id);
+      addLog("item", "gelöscht", it.id, it.title, [chName(it.channel), fmt(it.date), pName(it.assignee)].join(" · ") + (why ? " · " + why : ""));
       if (it.assignee && (!m || it.assignee !== m.id) && it.status !== "live") {
         var nid = uidGen("n");
         await setDoc("notices/" + nid, { person: it.assignee, text: "Entfällt: " + (it.title || "Beitrag") + " (" + fmt(it.date) + ")", detail: why || "", at: Date.now(), by: S.uid || null }).catch(function () {});
@@ -742,6 +813,36 @@ details.panel[open] > summary { margin-bottom: 12px; }
   };
 
   // ----- Wissensbasis -----
+  var LOGKINDS = [["item", "Beiträge"], ["event", "Events"], ["series", "Serien"], ["knowledge", "Wissensbasis"], ["person", "Team"], ["config", "Einstellungen"]];
+  function logLine(e, showTitle) {
+    var when = new Date(e.at).toLocaleString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+    var kind = (LOGKINDS.find(function (k) { return k[0] === e.kind; }) || ["", ""])[1];
+    var color = { neu: "st-frei", "geändert": "st-arbeit", "gelöscht": "" }[e.action] || "";
+    var open = e.kind === "item" && S.items.some(function (i) { return i.id === e.ref; }) ? ' data-act="open-item" data-id="' + esc(e.ref) + '" tabindex="0"' : e.kind === "event" && S.events.some(function (x) { return x.id === e.ref; }) ? ' data-act="open-event" data-id="' + esc(e.ref) + '" tabindex="0"' : ' style="cursor:default"';
+    return '<div class="li"' + open + '><span class="d">' + esc(when) + '</span><div class="t"><b>' + esc((person(e.by) || {}).name || e.name || "Unbekannt") + " · " + esc(kind) + (showTitle !== false ? ": " + esc(e.title || "") : "") + "</b><span>" + esc(e.details || "") + '</span></div><span class="status ' + color + '"' + (e.action === "gelöscht" ? ' style="color:var(--bad);border-color:currentColor;background:var(--bad-bg)"' : "") + ">" + esc(e.action) + "</span></div>";
+  }
+  V.aenderungen = function () {
+    var F = S.logFilter;
+    var list = S.log.filter(function (e) { return (!F.p || e.by === F.p) && (!F.k || e.kind === F.k); });
+    var h = '<div class="view-head"><div><h1>Änderungen</h1><p class="muted small">Wer hat wann was geändert. Klick auf einen Eintrag öffnet den Beitrag oder das Event, sofern es noch existiert. Angezeigt werden die letzten 500 Änderungen.</p></div></div>';
+    h += '<div class="panel stack"><div class="form"><label class="f">Person<select id="lg-p"><option value="">Alle</option>' + S.people.map(function (p) { return '<option value="' + esc(p.id) + '"' + (F.p === p.id ? " selected" : "") + ">" + esc(p.name) + "</option>"; }).join("") + '</select></label><label class="f">Bereich<select id="lg-k"><option value="">Alle</option>' + LOGKINDS.map(function (k) { return '<option value="' + k[0] + '"' + (F.k === k[0] ? " selected" : "") + ">" + k[1] + "</option>"; }).join("") + "</select></label></div>";
+    if (!list.length) h += '<p class="muted small">' + (S.log.length ? "Keine Änderungen für diesen Filter." : "Noch keine Änderungen aufgezeichnet. Ab jetzt erscheint hier jede Änderung im Planer.") + "</p>";
+    else {
+      var day = "";
+      h += '<div class="list">';
+      list.forEach(function (e) {
+        var d = new Date(e.at).toLocaleDateString("de-DE", { weekday: "long", day: "2-digit", month: "long" });
+        if (d !== day) { day = d; h += '<h3 style="padding:14px 4px 4px">' + esc(d) + "</h3>"; }
+        h += logLine(e);
+      });
+      h += "</div>";
+    }
+    return h + "</div>";
+  };
+  after.aenderungen = function () {
+    ["p", "k"].forEach(function (k) { var el = document.getElementById("lg-" + k); if (el) el.addEventListener("change", function () { S.logFilter[k] = el.value; render(true); }); });
+  };
+
   V.wissen = function () {
     var h = '<div class="view-head"><div><h1>Wissensbasis</h1><p class="muted small">Daran orientiert sich die KI beim Schreiben: Tone of Voice, Do & Don\'t, Wortliste, Zielgruppen. Texte direkt einfügen. Dateien wie PDFs oder Designvorlagen kannst du zusätzlich ablegen; die KI liest nur den eingefügten Text.</p></div><button class="btn" data-act="new-know">Eintrag anlegen</button></div>';
     if (!S.knowledge.length) h += '<div class="empty">Noch leer. Starte mit 3 bis 5 Texten, die so klingen, wie feelen klingen soll, und einer kurzen Do-&-Don\'t-Liste.</div>';
@@ -857,6 +958,8 @@ details.panel[open] > summary { margin-bottom: 12px; }
       '<label class="f wide">Link zum Entwurf <span class="hint">Canva, Drive, Dropbox …</span><input type="url" id="it-link" value="' + esc(it.link) + '" placeholder="https://"></label>' +
       (it.link && /^https?:\/\//.test(it.link) ? '<a class="small wide" href="' + esc(it.link) + '" target="_blank" rel="noopener">Entwurf öffnen ↗</a>' : "") + "</div>";
     if (!isNew) {
+      var hist = S.log.filter(function (e) { return e.kind === "item" && e.ref === it.id; }).slice(0, 15);
+      if (hist.length) h += '<details class="panel"><summary>Verlauf (' + hist.length + ')</summary><div class="list">' + hist.map(function (e) { return logLine(e, false); }).join("") + "</div></details>";
       h += '<div class="stack"><h3>Kommentare & Feedback</h3><div class="comments">' + ((it.comments || []).map(function (c) { return '<div class="comment"><div class="meta">' + esc(c.name || "") + " · " + esc(new Date(c.at).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })) + "</div><p>" + esc(c.text) + "</p></div>"; }).join("") || '<p class="small muted">Noch keine Kommentare.</p>') +
         '</div><textarea id="it-comment" rows="2" placeholder="Kommentar oder Feedback …"></textarea></div>';
     }
@@ -1313,7 +1416,7 @@ details.panel[open] > summary { margin-bottom: 12px; }
     "ev-gen": async function () { var ev = readEventForm(); var items = generateFromCategory(ev); closeDlg(); try { await saveEvent(ev); for (var k = 0; k < items.length; k++) await saveItem(items[k]); toast(items.length ? items.length + " Beiträge ergänzt" : "Alle Schritte sind schon angelegt."); } catch (e) {} },
     "del-event": function (el) {
       if (el.dataset.confirm !== "1") { el.dataset.confirm = "1"; el.textContent = "Event löschen? Beiträge bleiben."; return; }
-      var ev = JSON.parse(dlg.dataset.event || "{}"); delDoc("events/" + ev.id).catch(function () {}); closeDlg();
+      var ev = JSON.parse(dlg.dataset.event || "{}"); delDoc("events/" + ev.id).then(function () { addLog("event", "gelöscht", ev.id, ev.title, fmt(ev.start)); }, function () {}); closeDlg();
     },
     "new-series": function () { openSeries(null); },
     "open-series": function (el) { openSeries(el.dataset.id); },
@@ -1321,12 +1424,12 @@ details.panel[open] > summary { margin-bottom: 12px; }
     "se-del": function (el) { var rows = readSeriesRows(); rows.splice(Number(el.dataset.k), 1); $("#se-rows").innerHTML = seriesRows(rows); },
     "se-ai": runSeriesAi,
     "save-series": function () { var s = readSeriesForm(); if (!validDate(s.start)) { toast("Bitte ein Startdatum wählen."); return; } closeDlg(); saveSeries(s).then(function () { toast("Serie gespeichert"); }, function () {}); },
-    "del-series": function (el) { if (el.dataset.confirm !== "1") { el.dataset.confirm = "1"; el.textContent = "Wirklich löschen?"; return; } var s = JSON.parse(dlg.dataset.series || "{}"); delDoc("series/" + s.id).catch(function () {}); closeDlg(); },
+    "del-series": function (el) { if (el.dataset.confirm !== "1") { el.dataset.confirm = "1"; el.textContent = "Wirklich löschen?"; return; } var s = JSON.parse(dlg.dataset.series || "{}"); delDoc("series/" + s.id).then(function () { addLog("series", "gelöscht", s.id, s.name, "Start " + fmt(s.start)); }, function () {}); closeDlg(); },
     "file-del": function (el) { el.closest("[data-file]").remove(); },
     "new-know": function () { openKnow(null); },
     "open-know": function (el) { openKnow(el.dataset.id); },
     "save-know": function () { var k = JSON.parse(dlg.dataset.know || "{}"); k.title = val("k-title").trim() || "Ohne Titel"; k.kind = val("k-kind"); k.channel = val("k-channel"); k.text = val("k-text").slice(0, 200000); k.files = readFiles(); closeDlg(); saveKnowledge(k).then(function () { toast("Gespeichert"); }, function () {}); },
-    "del-know": function (el) { if (el.dataset.confirm !== "1") { el.dataset.confirm = "1"; el.textContent = "Wirklich löschen?"; return; } var k = JSON.parse(dlg.dataset.know || "{}"); delDoc("knowledge/" + k.id).catch(function () {}); closeDlg(); },
+    "del-know": function (el) { if (el.dataset.confirm !== "1") { el.dataset.confirm = "1"; el.textContent = "Wirklich löschen?"; return; } var k = JSON.parse(dlg.dataset.know || "{}"); delDoc("knowledge/" + k.id).then(function () { addLog("knowledge", "gelöscht", k.id, k.title, ""); }, function () {}); closeDlg(); },
     "cal-prev": function () { S.cal.m--; if (S.cal.m < 0) { S.cal.m = 11; S.cal.y--; } render(true); },
     "cal-next": function () { S.cal.m++; if (S.cal.m > 11) { S.cal.m = 0; S.cal.y++; } render(true); },
     "cal-today": function () { var d = new Date(); S.cal = { y: d.getFullYear(), m: d.getMonth() }; render(true); },
@@ -1361,7 +1464,7 @@ details.panel[open] > summary { margin-bottom: 12px; }
     "pillar-ai-take": function () { var c = clone(cfg()); S.pillarAi.result.forEach(function (p) { c.pillars.push({ id: uidGen("p"), name: p.name, desc: p.desc, share: p.share, topics: p.topics.map(function (t) { return { id: uidGen("t"), name: t, desc: "" }; }) }); }); S.pillarAi = { text: "", busy: false, result: null }; saveConfig(c); toast("Themensäulen übernommen"); },
     "pillar-ai-drop": function () { S.pillarAi.result = null; render(true); },
     "add-person": function () { var p = { id: uidGen("pe"), name: "Neue Person", role: "", channels: [], mdChannels: [], canApprove: false, isLead: false, active: true }; savePerson(p); },
-    "del-person": function (el) { if (el.dataset.confirm !== "1") { el.dataset.confirm = "1"; el.textContent = "wirklich?"; return; } delDoc("people/" + el.dataset.id).catch(function () {}); },
+    "del-person": function (el) { if (el.dataset.confirm !== "1") { el.dataset.confirm = "1"; el.textContent = "wirklich?"; return; } var gone = person(el.dataset.id); delDoc("people/" + el.dataset.id).then(function () { addLog("person", "gelöscht", el.dataset.id, gone ? gone.name : "", "Aus dem Team entfernt"); }, function () {}); },
     "unlink": function (el) { var p = clone(person(el.dataset.id)); if (!p) return; delete p.userId; savePerson(p); },
     "add-channel": function () { var c = clone(cfg()); c.channels.push({ id: uidGen("c"), name: "Neuer Kanal", color: "#888888" }); saveConfig(c); },
     "del-channel": function (el) { if (el.dataset.confirm !== "1") { el.dataset.confirm = "1"; el.textContent = "wirklich?"; return; } var c = clone(cfg()); c.channels.splice(Number(el.dataset.i), 1); saveConfig(c); },
