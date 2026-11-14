@@ -351,7 +351,7 @@ details.panel[open] > summary { margin-bottom: 12px; }
   }
 
   // ---------- Routing ----------
-  var VIEWS = [["heute", "Heute"], ["kalender", "Kalender"], ["tabelle", "Tabelle"], ["themen", "Themenbaum"], ["eingabe", "Planen & ändern"], ["events", "Events & Serien"], ["wissen", "Wissensbasis"], ["einstellungen", "Einstellungen"]];
+  var VIEWS = [["heute", "Heute"], ["kalender", "Kalender"], ["tabelle", "Tabelle"], ["eingabe", "Planen & ändern"], ["events", "Events & Serien"], ["wissen", "Wissensbasis"], ["einstellungen", "Einstellungen"], ["themen", "Themenbaum"]];
   function route() { var h = (location.hash || "").replace("#", ""); S.view = VIEWS.some(function (v) { return v[0] === h; }) ? h : "heute"; }
   window.addEventListener("hashchange", function () { route(); render(true); });
 
