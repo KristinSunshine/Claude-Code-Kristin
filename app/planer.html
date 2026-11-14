@@ -216,14 +216,14 @@ details.panel[open] > summary { margin-bottom: 12px; }
     config: null, people: [], items: [], events: [], series: [], knowledge: [],
     loaded: {}, timedOut: false,
     view: "heute", cal: null, hidden: {}, table: { sort: "date", dir: 1, ch: "", st: "", p: "", q: "" },
-    draft: { text: "", busy: false, proposal: null, error: "" },
+    draft: { text: "", busy: false, proposal: null, error: "", docText: "", files: [] }, kFilter: "",
     freq: { busy: false, text: "" }, pillarAi: { text: "", busy: false, result: null },
     planMode: "neu", change: { scope: "", text: "", busy: false, proposal: null, error: "" }, notices: [], sel: {}, log: [], logFilter: { p: "", k: "" },
     dirty: false
   };
   var STATUS = [["idee", "Idee"], ["arbeit", "in Arbeit"], ["review", "zur Freigabe"], ["frei", "freigegeben"], ["live", "veröffentlicht"]];
   var GROUPS = [["intern-offline", "Intern · offline"], ["intern-online", "Intern · online"], ["extern", "Externe Events"]];
-  var KKINDS = [["tov", "Tone of Voice"], ["dodont", "Do & Don't"], ["wording", "Wortliste"], ["persona", "Zielgruppe / Persona"], ["design", "Design & Vorlagen"], ["md", "Manifestation Days"], ["other", "Sonstiges"]];
+  var KKINDS = [["tov", "Tone of Voice"], ["dodont", "Do & Don't"], ["wording", "Wortliste"], ["persona", "Zielgruppe / Persona"], ["design", "Design & Vorlagen"], ["event", "Event- & Kampagnen-Infos"], ["md", "Manifestation Days"], ["other", "Sonstiges"]];
   try { S.hidden = JSON.parse(localStorage.getItem("fp-hidden") || "{}") || {}; } catch (e) { S.hidden = {}; }
   var now = new Date(); S.cal = { y: now.getFullYear(), m: now.getMonth() };
 
@@ -684,8 +684,89 @@ details.panel[open] > summary { margin-bottom: 12px; }
   };
   function readTextFile(file, cb) {
     if (!file) return;
-    if (!/\.(csv|txt|md)$/i.test(file.name) && !/^text\//.test(file.type)) { toast("Bitte eine CSV-, TXT- oder MD-Datei wählen. Bei PDF oder Word den Text kopieren und einfügen."); return; }
-    var r = new FileReader(); r.onload = function () { cb(String(r.result || "")); }; r.readAsText(file);
+    toast("Liest „" + file.name + "“ …");
+    extractText(file).then(function (t) {
+      if (t == null) toast("Dieses Format kann nicht gelesen werden. PDF, Word (.docx), TXT, MD und CSV gehen.");
+      else if (!t.trim()) toast("In „" + file.name + "“ ist kein lesbarer Text, zum Beispiel bei gescannten PDFs.");
+      else cb(t);
+    }, function () { toast("„" + file.name + "“ konnte nicht gelesen werden."); });
+  }
+
+  // ---------- Reading documents ----------
+  var LIB = { pdf: "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js", pdfWorker: "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js", docx: "https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js" };
+  var ACCEPT_DOCS = ".pdf,.docx,.txt,.md,.csv,.png,.jpg,.jpeg,.webp,.gif,application/pdf,text/plain,text/csv,text/markdown,image/png,image/jpeg,image/webp,image/gif";
+  function loadScript(src) {
+    return new Promise(function (res, rej) {
+      var ex = document.querySelector('script[src="' + src + '"]');
+      if (ex) { if (ex.dataset.ok) res(); else { ex.addEventListener("load", function () { res(); }); ex.addEventListener("error", rej); } return; }
+      var el = document.createElement("script"); el.src = src; el.onload = function () { el.dataset.ok = "1"; res(); }; el.onerror = rej; document.head.appendChild(el);
+    });
+  }
+  function fileExt(f) { return (f.name.split(".").pop() || "").toLowerCase(); }
+  function isImage(f) { return /^image\//.test(f.type) || ["png", "jpg", "jpeg", "webp", "gif"].indexOf(fileExt(f)) >= 0; }
+  async function extractText(file) {
+    var ext = fileExt(file);
+    if (["txt", "md", "csv"].indexOf(ext) >= 0 || /^text\//.test(file.type)) return await file.text();
+    if (ext === "docx") {
+      await loadScript(LIB.docx);
+      var r = await window.mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
+      return r.value || "";
+    }
+    if (ext === "pdf" || file.type === "application/pdf") {
+      // The worker script runs on the main thread here (the page cannot start a cross-origin worker)
+      await loadScript(LIB.pdfWorker); await loadScript(LIB.pdf);
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = LIB.pdfWorker;
+      var doc = await window.pdfjsLib.getDocument({ data: new Uint8Array(await file.arrayBuffer()), isEvalSupported: false }).promise;
+      var pages = [];
+      for (var i = 1; i <= Math.min(doc.numPages, 200); i++) {
+        var tc = await (await doc.getPage(i)).getTextContent();
+        pages.push(tc.items.map(function (it) { return it.str + (it.hasEOL ? "\n" : " "); }).join("").replace(/[ \t]+\n/g, "\n").trim());
+      }
+      return pages.join("\n\n");
+    }
+    return null;
+  }
+  async function describeImage(file) {
+    if (!S.sample) return { text: "", warn: "Die KI kann Bilder in dieser Ansicht nicht ansehen." };
+    var lim = await S.sample.limits().catch(function () { return null; });
+    if (!lim || !lim.images) return { text: "", warn: "Die KI kann Bilder in dieser Ansicht nicht ansehen." };
+    if (file.size > lim.images.maxInputBytes) return { text: "", warn: "„" + file.name + "“ ist zu groß für die KI." };
+    var r = await S.sample("Das ist eine Designvorlage von feelen (z. B. für Social-Media-Grafiken oder Ankündigungen). Beschreibe sie so, dass jemand eine neue Grafik im gleichen Stil gestalten oder briefen kann. Auf Deutsch, knapp in Stichpunkten: Format und Seitenverhältnis, Layout und Aufteilung, Farben (mit Hex-Werten, soweit erkennbar), Schriften (Stil, Gewicht, Gross-/Kleinschreibung), Bildsprache, wo Texte stehen und wie lang sie sind, Logo-Platzierung, wofür die Vorlage geeignet ist.", { images: [file], modelTier: "default" });
+    return { text: r.text, warn: "" };
+  }
+  var ASSET_TYPES = { md: "text/markdown", txt: "text/plain", csv: "text/csv", json: "application/json", pdf: "application/pdf", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp", gif: "image/gif", svg: "image/svg+xml", mp4: "video/mp4" };
+  // Read text (or describe an image) and, where allowed, keep the file itself
+  async function processFile(file) {
+    var out = { text: "", asset: null, warns: [] };
+    try {
+      if (isImage(file)) { var d = await describeImage(file); out.text = d.text ? "Designvorlage (Bild): " + d.text : ""; if (d.warn) out.warns.push(d.warn); }
+      else {
+        var t = await extractText(file);
+        if (t == null) out.warns.push("„" + file.name + "“: Format kann nicht gelesen werden.");
+        else if (!t.trim()) out.warns.push("„" + file.name + "“ enthält keinen lesbaren Text (z. B. gescanntes PDF).");
+        else out.text = t.trim();
+      }
+    } catch (e) { console.warn(e); out.warns.push((e && e.code && aiErr(e)) || "„" + file.name + "“ konnte nicht gelesen werden."); }
+    if (S.assets && ASSET_TYPES[fileExt(file)]) {
+      try { var res = await S.assets.upload(file, { type: ASSET_TYPES[fileExt(file)] }); out.asset = { id: res.id, name: file.name, type: res.contentType }; }
+      catch (e) { out.warns.push(e && e.code === "too_large" ? "„" + file.name + "“ ist zu groß zum Ablegen (max. 20 MB)." : "„" + file.name + "“ konnte nicht abgelegt werden."); }
+    }
+    return out;
+  }
+  // Process several files: append text to a textarea, list stored files, report progress in a note
+  async function handleFiles(fileList, textEl, listEl, noteEl) {
+    var files = Array.prototype.slice.call(fileList || []); if (!files.length) return { texts: [], assets: [] };
+    var all = { texts: [], assets: [] }, warns = [];
+    for (var k = 0; k < files.length; k++) {
+      if (noteEl) noteEl.textContent = "Liest " + (k + 1) + " von " + files.length + ": " + files[k].name + (isImage(files[k]) ? " (die KI sieht sich das Bild an, das dauert etwas)" : "") + " …";
+      var r = await processFile(files[k]);
+      if (r.text) { var block = "--- aus „" + files[k].name + "“ ---\n" + r.text.slice(0, 150000); all.texts.push(block); if (textEl) textEl.value = (textEl.value.trim() ? textEl.value.trim() + "\n\n" : "") + block; }
+      if (r.asset) { all.assets.push(r.asset); if (listEl) listEl.insertAdjacentHTML("beforeend", fileRow(r.asset)); }
+      warns = warns.concat(r.warns);
+    }
+    var read = all.texts.length;
+    if (noteEl) noteEl.textContent = (read ? read + " Datei" + (read > 1 ? "en" : "") + " gelesen, Text übernommen. " : "") + (all.assets.length ? "Dateien abgelegt. " : "") + warns.join(" ") + (read || all.assets.length ? " Zum Übernehmen speichern." : "");
+    return all;
   }
 
   // ----- Eingabe (KI) -----
@@ -750,6 +831,11 @@ details.panel[open] > summary { margin-bottom: 12px; }
       '<div class="row"><button class="btn accent" data-act="draft-ai"' + (D.busy || !S.sample ? " disabled" : "") + ">" + (D.busy ? "Denkt nach …" : "Vorschlag erstellen") + "</button>" + (D.proposal ? '<button class="btn ghost" data-act="draft-clear">Neu beginnen</button>' : "") +
       (!S.sample ? '<span class="small muted">KI ist in dieser Ansicht nicht verfügbar. Du kannst Beiträge im Kalender von Hand anlegen.</span>' : "") + "</div>" +
       (D.busy ? '<p class="thinking">Die KI plant. Das dauert meist 20 bis 60 Sekunden.</p>' : "") + (D.error ? '<p class="overdue small">' + esc(D.error) + "</p>" : "") + "</div>";
+    h += '<details class="panel"' + (D.docText || D.files.length ? " open" : "") + '><summary>Unterlagen mitgeben' + (D.docText || D.files.length ? " (" + (D.files.length ? D.files.length + " Dateien, " : "") + Math.round(D.docText.length / 1000) + "k Zeichen)" : "") + '</summary><div class="stack">' +
+      '<p class="small muted">Event-Beschreibung, Ablauf, Preise, Copywriting-Doc, Designvorlagen. Die KI nutzt sie für den Vorschlag. Beim Bestätigen werden sie in der Wissensbasis gespeichert und mit dem Event oder der Kampagne verknüpft.</p>' +
+      '<textarea id="d-docs" rows="6" placeholder="Infos hier einfügen oder unten Dateien wählen …">' + esc(D.docText) + "</textarea>" +
+      '<div class="stack" id="d-filelist">' + D.files.map(fileRow).join("") + '</div><div class="row"><input type="file" id="d-files" multiple accept="' + ACCEPT_DOCS + '"><span class="small muted" id="d-note"></span></div>' +
+      '<p class="small muted">PDF, Word (.docx), TXT, MD, CSV und Bilder. Auf dem Handy in der Claude-App klappt die Dateiauswahl nicht immer.</p></div></details>';
     var P = D.proposal;
     if (P) {
       h += '<div class="panel stack"><div class="row" style="justify-content:space-between"><h2>Vorschlag: ' + esc(P.kampagne || "Kampagne") + '</h2><span class="small muted">Alles ist änderbar. Zeilen ohne Haken werden nicht übernommen.</span></div>';
@@ -776,6 +862,13 @@ details.panel[open] > summary { margin-bottom: 12px; }
   }
   after.eingabe = function () {
     if (S.planMode === "aendern") return after.changeView();
+    var dd = $("#d-docs"); if (dd) dd.addEventListener("input", function () { S.draft.docText = dd.value; });
+    var df = $("#d-files"); if (df) df.addEventListener("change", async function () {
+      df.disabled = true;
+      var r = await handleFiles(df.files, dd, $("#d-filelist"), $("#d-note"));
+      S.draft.docText = dd ? dd.value : S.draft.docText; S.draft.files = S.draft.files.concat(r.assets);
+      df.disabled = false; df.value = "";
+    });
     var ta = $("#d-text"); if (ta) ta.addEventListener("input", function () { S.draft.text = ta.value; });
     $$(".prop tbody tr").forEach(function (tr) {
       var k = Number(tr.dataset.k);
@@ -845,18 +938,22 @@ details.panel[open] > summary { margin-bottom: 12px; }
 
   V.wissen = function () {
     var h = '<div class="view-head"><div><h1>Wissensbasis</h1><p class="muted small">Daran orientiert sich die KI beim Schreiben: Tone of Voice, Do & Don\'t, Wortliste, Zielgruppen. Texte direkt einfügen. Dateien wie PDFs oder Designvorlagen kannst du zusätzlich ablegen; die KI liest nur den eingefügten Text.</p></div><button class="btn" data-act="new-know">Eintrag anlegen</button></div>';
+    var KF = S.kFilter, links = []; S.knowledge.forEach(function (k) { if (k.link && links.indexOf(k.link) < 0) links.push(k.link); });
+    if (links.length) h += '<div class="panel"><label class="f" style="max-width:420px">Anzeigen<select id="k-filter"><option value="">alle Einträge</option><option value="_general"' + (KF === "_general" ? " selected" : "") + ">nur allgemeine</option>" + links.map(function (l) { return '<option value="' + esc(l) + '"' + (KF === l ? " selected" : "") + ">" + esc(linkLabel(l)) + "</option>"; }).join("") + "</select></label></div>";
     if (!S.knowledge.length) h += '<div class="empty">Noch leer. Starte mit 3 bis 5 Texten, die so klingen, wie feelen klingen soll, und einer kurzen Do-&-Don\'t-Liste.</div>';
     KKINDS.forEach(function (k) {
-      var list = S.knowledge.filter(function (x) { return x.kind === k[0]; });
+      var list = S.knowledge.filter(function (x) { return x.kind === k[0] && (!KF || (KF === "_general" ? !x.link : x.link === KF)); });
       if (!list.length) return;
       h += '<section class="panel stack"><h2>' + esc(k[1]) + '</h2><div class="list">' + list.map(function (x) {
-        return '<div class="li" data-act="open-know" data-id="' + esc(x.id) + '" tabindex="0"><span class="d">' + (x.channel ? "" : "alle") + '</span><div class="t"><b>' + esc(x.title || "Ohne Titel") + "</b><span>" + (x.channel ? chip(chColor(x.channel), chName(x.channel)) + " " : "") + esc((x.text || "").slice(0, 140)) + ((x.text || "").length > 140 ? " …" : "") + "</span></div><span class=\"small muted\">" + ((x.files || []).length ? (x.files.length + " Datei" + (x.files.length > 1 ? "en" : "")) : "") + "</span></div>";
+        return '<div class="li" data-act="open-know" data-id="' + esc(x.id) + '" tabindex="0"><span class="d">' + (x.channel ? "" : "alle") + '</span><div class="t"><b>' + esc(x.title || "Ohne Titel") + "</b><span>" + (x.link ? chip(cfg().colors.event, linkLabel(x.link)) + " " : "") + (x.channel ? chip(chColor(x.channel), chName(x.channel)) + " " : "") + esc((x.text || "").slice(0, 140)) + ((x.text || "").length > 140 ? " …" : "") + "</span></div><span class=\"small muted\">" + ((x.files || []).length ? (x.files.length + " Datei" + (x.files.length > 1 ? "en" : "")) : "") + "</span></div>";
       }).join("") + "</div></section>";
     });
     return h;
   };
 
   // ----- Einstellungen -----
+  after.wissen = function () { var f = $("#k-filter"); if (f) f.addEventListener("change", function () { S.kFilter = f.value; render(true); }); };
+
   V.einstellungen = function () {
     var c = cfg();
     var h = '<div class="view-head"><div><h1>Einstellungen</h1><p class="muted small">Team, Kanäle und Event-Kategorien. Änderungen gelten sofort für alle.</p></div></div>';
@@ -999,6 +1096,7 @@ details.panel[open] > summary { margin-bottom: 12px; }
       '<label class="f">Ort oder Zoom-Link<input type="text" id="ev-loc" value="' + esc(ev.location) + '"></label><label class="f">Anmeldelink<input type="url" id="ev-reg" value="' + esc(ev.regLink) + '"></label>' +
       '<label class="f">Kapazität<input type="text" id="ev-cap" value="' + esc(ev.capacity) + '"></label><label class="f">Unsere Rolle <span class="hint">bei externen Events</span><input type="text" id="ev-role" value="' + esc(ev.role || "") + '" placeholder="Speaker, Aussteller …"></label>' +
       '<label class="f wide">Notizen<textarea id="ev-notes" rows="3">' + esc(ev.notes) + "</textarea></label></div>";
+    h += isNew ? '<p class="small muted">Unterlagen kannst du nach dem Speichern anhängen, oder du legst das Event über „Planen & ändern“ an und gibst sie gleich mit.</p>' : docsBlock("ev:" + ev.id, ev.title);
     h += '<div class="stack"><h3>Checkliste</h3><div id="ev-check" class="stack">' + (ev.checklist || []).map(function (c, k) { return '<div class="checkline"><input type="checkbox" data-ck="' + k + '"' + (c.done ? " checked" : "") + ' aria-label="erledigt"><input type="text" data-ckt="' + k + '" value="' + esc(c.t) + '"></div>'; }).join("") +
       '</div><button type="button" class="btn ghost sm" data-act="ck-add" style="justify-self:start">Punkt hinzufügen</button></div>';
     if (isNew) h += '<label class="checkline"><input type="checkbox" id="ev-gen" checked> Beiträge aus den Schritten der Kategorie anlegen <span class="small muted">(Rückwärtsplanung ab Start)</span></label>';
@@ -1050,9 +1148,11 @@ details.panel[open] > summary { margin-bottom: 12px; }
       '<div class="form"><label class="f">Name<input type="text" id="se-name" value="' + esc(s.name) + '"></label><label class="f">Start (Tag 1)<input type="date" id="se-start" value="' + esc(s.start) + '"></label></div>' +
       '<div class="scroll-x"><table class="steps" style="min-width:560px"><thead><tr><th>Tag</th><th>Art</th><th>Titel / Betreff</th><th>Uhrzeit</th><th></th></tr></thead><tbody id="se-rows">' + seriesRows(s.entries) + "</tbody></table></div>" +
       '<div class="row"><button type="button" class="btn ghost sm" data-act="se-add">Zeile hinzufügen</button></div>' +
-      '<details class="panel"><summary>Aus dem Copywriting-Doc übernehmen</summary><div class="stack"><p class="small muted">Füge den Text des Copywriting-Docs ein (oder lade eine TXT/MD-Datei). Die KI liest daraus Mails und Live Calls mit Tag und Betreff und ersetzt die Tabelle oben.</p><textarea id="se-doc" rows="6">' + esc(s.doc || "") + '</textarea><div class="row"><input type="file" id="se-file" accept=".txt,.md,text/plain"><button type="button" class="btn accent sm" data-act="se-ai"' + (S.sample ? "" : " disabled") + '>Tabelle aus Text erstellen</button></div><p class="small" id="se-ai-note"></p></div></details>' +
+      '<details class="panel"><summary>Aus dem Copywriting-Doc übernehmen</summary><div class="stack"><p class="small muted">Füge den Text des Copywriting-Docs ein (oder lade es als PDF, Word oder TXT). Die KI liest daraus Mails und Live Calls mit Tag und Betreff und ersetzt die Tabelle oben.</p><textarea id="se-doc" rows="6">' + esc(s.doc || "") + '</textarea><div class="row"><input type="file" id="se-file" accept=".pdf,.docx,.txt,.md,application/pdf,text/plain"><button type="button" class="btn accent sm" data-act="se-ai"' + (S.sample ? "" : " disabled") + '>Tabelle aus Text erstellen</button></div><p class="small" id="se-ai-note"></p></div></details>' +
+      '<label class="f">Verknüpftes Event <span class="hint">z. B. die Live Calls oder das Angebot dazu</span><select id="se-event"><option value="">keins</option>' + S.events.slice().sort(function (a, b) { return (a.start || "").localeCompare(b.start || ""); }).map(function (e) { return '<option value="' + esc(e.id) + '"' + (e.id === s.eventId ? " selected" : "") + ">" + esc(e.title + " · " + fmt(e.start)) + "</option>"; }).join("") + "</select></label>" +
       '<label class="f">Notizen<textarea id="se-notes" rows="2">' + esc(s.notes || "") + "</textarea></label>" +
-      filesBlock(s.files) +
+      (isNew ? '<p class="small muted">Nach dem Speichern kannst du Unterlagen zur Serie anhängen.</p>' : docsBlock("se:" + s.id, s.name)) +
+      filesBlock(s.files, "se-doc") +
       '<div class="dlg-foot"><div>' + (!isNew ? '<button type="button" class="btn danger sm" data-act="del-series">Löschen</button>' : "") + '</div><button type="button" class="btn" data-act="save-series"' + (S.readonly ? " disabled" : "") + ">Speichern</button></div></form>";
     openDlg(h, function () {
       dlg.dataset.series = JSON.stringify(s);
@@ -1064,46 +1164,77 @@ details.panel[open] > summary { margin-bottom: 12px; }
     return entries.map(function (e, k) { return '<tr data-row="' + k + '"><td style="width:80px"><input type="number" min="-60" max="120" data-sf="day" value="' + ((Number(e.offset) || 0) + 1) + '"></td><td style="width:130px"><select data-sf="type"><option value="mail"' + (e.type !== "live" ? " selected" : "") + '>Mail</option><option value="live"' + (e.type === "live" ? " selected" : "") + '>Live Call</option></select></td><td><input type="text" data-sf="title" value="' + esc(e.title) + '"></td><td style="width:110px"><input type="time" data-sf="time" value="' + esc(e.time || "") + '"></td><td><button type="button" class="iconbtn" data-act="se-del" data-k="' + k + '">entfernen</button></td></tr>'; }).join("");
   }
   function readSeriesRows() { return $$("#se-rows tr", dlg).map(function (tr) { return { offset: (Number($('[data-sf="day"]', tr).value) || 1) - 1, type: $('[data-sf="type"]', tr).value, title: $('[data-sf="title"]', tr).value.trim(), time: $('[data-sf="time"]', tr).value }; }).filter(function (e) { return e.title; }); }
-  function readSeriesForm() { var s = JSON.parse(dlg.dataset.series || "{}"); s.name = val("se-name").trim() || "Serie"; s.start = val("se-start"); s.entries = readSeriesRows(); s.notes = val("se-notes"); s.doc = val("se-doc").slice(0, 150000); s.files = readFiles(); return s; }
+  function readSeriesForm() { var s = JSON.parse(dlg.dataset.series || "{}"); s.name = val("se-name").trim() || "Serie"; s.start = val("se-start"); s.entries = readSeriesRows(); s.notes = val("se-notes"); s.eventId = val("se-event"); s.doc = val("se-doc").slice(0, 150000); s.files = readFiles(); return s; }
 
-  function filesBlock(files) {
+  function filesBlock(files, textId) {
     var h = '<div class="stack"><h3>Dateien</h3><div class="stack" id="files">' + (files || []).map(fileRow).join("") + "</div>";
-    if (S.assets) h += '<div class="row"><input type="file" id="file-up"><span class="small muted" id="file-note"></span></div><p class="small muted">Reagiert der Button nicht? In der Claude-App auf dem Handy ist das Hochladen von Dateien nicht immer möglich. Öffne den Planer dann im Browser am Laptop (claude.ai).</p>';
-    else h += '<p class="small muted">Dateien hochladen kann nur, wer den Planer bearbeiten darf (Kristin). Einen Link zur Datei kannst du in den Notizen ablegen.</p>';
+    h += '<div class="row"><input type="file" id="file-up" multiple accept="' + ACCEPT_DOCS + '" data-text="' + esc(textId || "") + '"><span class="small muted" id="file-note"></span></div>';
+    h += '<p class="small muted">PDF, Word (.docx), TXT, MD, CSV und Bilder. Text aus Dokumenten wird ins Textfeld übernommen, Bilder beschreibt die KI dort. ' + (S.assets ? "Die Dateien selbst werden zusätzlich abgelegt (Word nur als Text). " : "Die Dateien selbst ablegen kann nur Kristin, der Text wird aber übernommen. ") + "Reagiert der Button nicht? In der Claude-App auf dem Handy klappt das nicht immer, dann im Browser am Laptop öffnen.</p>";
     return h + "</div>";
   }
   function fileRow(f) { return '<div class="row" data-file="' + esc(JSON.stringify(f)) + '"><a href="/_blob/' + esc(f.id) + '" target="_blank" rel="noopener">' + esc(f.name) + '</a><span class="small muted">' + esc(f.type || "") + '</span><button type="button" class="iconbtn" data-act="file-del">entfernen</button></div>'; }
   function readFiles() { return $$("[data-file]", dlg).map(function (el) { try { return JSON.parse(el.dataset.file); } catch (e) { return null; } }).filter(Boolean); }
   function bindUpload() {
-    var up = $("#file-up"); if (!up || !S.assets) return;
+    var up = $("#file-up"); if (!up) return;
     up.addEventListener("change", async function () {
-      var file = up.files[0]; if (!file) return;
-      var note = $("#file-note"); note.textContent = "Lädt hoch …";
-      var ext = (file.name.split(".").pop() || "").toLowerCase();
-      var types = { md: "text/markdown", txt: "text/plain", csv: "text/csv", json: "application/json", pdf: "application/pdf", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp", svg: "image/svg+xml", mp4: "video/mp4" };
-      try {
-        var res = await S.assets.upload(file, types[ext] ? { type: types[ext] } : undefined);
-        $("#files").insertAdjacentHTML("beforeend", fileRow({ id: res.id, name: file.name, type: res.contentType }));
-        note.textContent = "Hochgeladen. Zum Übernehmen speichern."; up.value = "";
-      } catch (e) { note.textContent = e && e.code === "unsupported_type" ? "Dieses Dateiformat wird nicht unterstützt. PDF, Bilder und Textdateien gehen. InDesign-Dateien bitte als PDF exportieren." : "Hochladen hat nicht geklappt."; }
+      var ta = up.dataset.text ? document.getElementById(up.dataset.text) : null;
+      up.disabled = true;
+      await handleFiles(up.files, ta, $("#files"), $("#file-note"));
+      up.disabled = false; up.value = "";
     });
   }
 
-  function openKnow(id) {
+  function linkOptions(sel) {
+    var back = addDays(today(), -120), h = '<option value="">allgemein (kein Event)</option>';
+    var evs = S.events.filter(function (e) { return (e.end || e.start || "") >= back || "ev:" + e.id === sel; }).sort(function (a, b) { return (a.start || "").localeCompare(b.start || ""); });
+    if (evs.length) h += '<optgroup label="Events">' + evs.map(function (e) { var v = "ev:" + e.id; return '<option value="' + esc(v) + '"' + (v === sel ? " selected" : "") + ">" + esc(e.title + " · " + fmt(e.start)) + "</option>"; }).join("") + "</optgroup>";
+    var camps = []; S.items.forEach(function (i) { if (i.campaign && camps.indexOf(i.campaign) < 0 && !S.events.some(function (e) { return e.title === i.campaign; })) camps.push(i.campaign); });
+    if (sel && sel.indexOf("ca:") === 0 && camps.indexOf(sel.slice(3)) < 0) camps.push(sel.slice(3));
+    if (camps.length) h += '<optgroup label="Kampagnen">' + camps.sort().map(function (c) { var v = "ca:" + c; return '<option value="' + esc(v) + '"' + (v === sel ? " selected" : "") + ">" + esc(c) + "</option>"; }).join("") + "</optgroup>";
+    if (S.series.length) h += '<optgroup label="Serien">' + S.series.map(function (x) { var v = "se:" + x.id; return '<option value="' + esc(v) + '"' + (v === sel ? " selected" : "") + ">" + esc(x.name + " · " + fmt(x.start)) + "</option>"; }).join("") + "</optgroup>";
+    return h;
+  }
+  function linkLabel(link) {
+    if (!link) return "";
+    if (link.indexOf("ev:") === 0) { var e = S.events.find(function (x) { return x.id === link.slice(3); }); return e ? e.title : "Event (gelöscht)"; }
+    if (link.indexOf("se:") === 0) { var r = S.series.find(function (x) { return x.id === link.slice(3); }); return r ? r.name : "Serie (gelöscht)"; }
+    return link.slice(3);
+  }
+  // All links that belong to an event, a campaign or a series, including the series tied to an event
+  function relatedLinks(eventId, campaign, seriesId) {
+    var L = [];
+    if (eventId) { L.push("ev:" + eventId); S.series.forEach(function (x) { if (x.eventId === eventId) L.push("se:" + x.id); }); var ev = S.events.find(function (e) { return e.id === eventId; }); if (ev) L.push("ca:" + ev.title); }
+    if (campaign) { L.push("ca:" + campaign); S.events.forEach(function (e) { if (e.title === campaign) { L.push("ev:" + e.id); S.series.forEach(function (x) { if (x.eventId === e.id) L.push("se:" + x.id); }); } }); }
+    if (seriesId) { L.push("se:" + seriesId); var sr = S.series.find(function (x) { return x.id === seriesId; }); if (sr && sr.eventId) L.push("ev:" + sr.eventId); }
+    return L;
+  }
+  function linkedDocs(links, max) {
+    var parts = S.knowledge.filter(function (k) { return k.link && links.indexOf(k.link) >= 0; }).map(function (k) { return "### " + (k.title || "Unterlage") + "\n" + (k.text || ""); });
+    var t = parts.join("\n\n"); max = max || 60000;
+    return t.length > max ? t.slice(0, max) + "\n[gekürzt]" : t;
+  }
+  function docsBlock(link, title) {
+    var docs = S.knowledge.filter(function (k) { return k.link === link; });
+    return '<div class="stack"><h3>Unterlagen (' + docs.length + ')</h3><p class="small muted">Infos und Dokumente zu diesem Eintrag. Sie stehen in der Wissensbasis und die KI nutzt sie für alle Beiträge dazu.</p>' +
+      (docs.length ? '<div class="list">' + docs.map(function (k) { return '<div class="li" data-act="open-know" data-id="' + esc(k.id) + '" tabindex="0"><span class="d">' + ((k.files || []).length ? k.files.length + " Datei" + (k.files.length > 1 ? "en" : "") : "Text") + '</span><div class="t"><b>' + esc(k.title || "Unterlage") + "</b><span>" + esc((k.text || "").slice(0, 120)) + "</span></div><span></span></div>"; }).join("") + "</div>" : "") +
+      '<button type="button" class="btn ghost sm" data-act="add-doc" data-link="' + esc(link) + '" data-title="' + esc("Infos: " + title) + '" style="justify-self:start">Unterlage hinzufügen</button></div>';
+  }
+
+  function openKnow(id, preset) {
     var k = id ? clone(S.knowledge.find(function (x) { return x.id === id; })) : null;
     if (id && !k) return;
     var isNew = !k;
-    if (isNew) k = { id: uidGen("k"), title: "", kind: "tov", channel: "", text: "", files: [] };
+    if (isNew) k = Object.assign({ id: uidGen("k"), title: "", kind: "tov", channel: "", link: "", text: "", files: [] }, preset || {});
     var h = '<form class="dlg" method="dialog"><div class="dlg-head"><h2>' + (isNew ? "Neuer Eintrag" : esc(k.title)) + '</h2><button type="button" class="iconbtn" data-act="close" aria-label="Schliessen">✕</button></div>' +
       '<div class="form"><label class="f wide">Titel<input type="text" id="k-title" value="' + esc(k.title) + '" placeholder="z. B. Instagram-Captions, die wir lieben"></label>' +
       '<label class="f">Art<select id="k-kind">' + KKINDS.map(function (x) { return '<option value="' + x[0] + '"' + (x[0] === k.kind ? " selected" : "") + ">" + x[1] + "</option>"; }).join("") + "</select></label>" +
       '<label class="f">Gilt für<select id="k-channel"><option value="">alle Kanäle</option>' + cfg().channels.map(function (c) { return '<option value="' + esc(c.id) + '"' + (c.id === k.channel ? " selected" : "") + ">" + esc(c.name) + "</option>"; }).join("") + "</select></label>" +
-      '<label class="f wide">Text <span class="hint">Die KI liest diesen Text. TXT- oder MD-Datei kannst du auch laden.</span><textarea id="k-text" rows="12">' + esc(k.text) + '</textarea></label><div class="wide row"><input type="file" id="k-file" accept=".txt,.md,.csv,text/plain"></div></div>' +
-      filesBlock(k.files) +
+      '<label class="f wide">Gehört zu <span class="hint">Event, Kampagne oder Serie. Die KI nutzt den Eintrag dann für alle Beiträge dazu.</span><select id="k-link">' + linkOptions(k.link || "") + "</select></label>" +
+      '<label class="f wide">Text <span class="hint">Die KI liest diesen Text. Dateien unten werden automatisch ausgelesen und hier eingefügt.</span><textarea id="k-text" rows="12">' + esc(k.text) + "</textarea></label></div>" +
+      filesBlock(k.files, "k-text") +
       '<div class="dlg-foot"><div>' + (!isNew ? '<button type="button" class="btn danger sm" data-act="del-know">Löschen</button>' : "") + '</div><button type="button" class="btn" data-act="save-know"' + (S.readonly ? " disabled" : "") + ">Speichern</button></div></form>";
     openDlg(h, function () {
       dlg.dataset.know = JSON.stringify(k);
-      var f = $("#k-file"); f.addEventListener("change", function () { readTextFile(f.files[0], function (t) { var ta = $("#k-text"); ta.value = (ta.value ? ta.value + "\n\n" : "") + t.slice(0, 150000); }); });
       bindUpload();
     });
   }
@@ -1158,6 +1289,7 @@ details.panel[open] > summary { margin-bottom: 12px; }
       planningContext() + "\n\nTONE OF VOICE (Auszug):\n" + (knowledgeText("", 12000) || "noch keine hinterlegt") +
       "\n\nREGELN:\n- Nutze nur Kanal-ids und Personen-ids aus den Listen oben. Aufgaben ohne Kanal (z. B. Grafik erstellen) bekommen channel \"\".\n- Weise Beiträge der zuständigen Person zu; während Manifestation-Days-Phasen gilt die MD-Zuständigkeit. Ist niemand zuständig, nimm die Stellvertretung.\n- Wenn ein Event erwähnt wird, schlage es mit passender categoryId vor und plane rückwärts nach den Schritten der Kategorie, angepasst an die Beschreibung.\n- due = Abgabe zur Freigabe, vor dem Veröffentlichungsdatum. Keine Daten in der Vergangenheit.\n- Vermeide Mails (Newsletter, Event-Mails) an Tagen mit anderen Mails und in Manifestation-Days-Phasen; schlage dann ein anderes Datum vor und erkläre es in hinweise.\n- Ordne Beiträge einem passenden Thema zu, wenn eines passt, sonst topic \"\".\n- brief: 1–2 Sätze, was der Beitrag leisten soll.\n- Schreibe auf Deutsch.\n\n" +
       "BESCHREIBUNG DER BEREICHSLEITUNG:\n" + D.text.trim() +
+      (D.docText.trim() ? "\n\nUNTERLAGEN DAZU (nutze die Fakten daraus: Daten, Ablauf, Angebot, Zielgruppe):\n" + D.docText.trim().slice(0, 80000) : "") +
       '\n\nAntworte nur mit JSON in dieser Form:\n{"kampagne":"Name","event":null oder {"title":"…","categoryId":"…","start":"YYYY-MM-DD","end":"YYYY-MM-DD oder leer","mode":"online|offline"},"items":[{"date":"YYYY-MM-DD","due":"YYYY-MM-DD","channel":"instagram","format":"Karussell","title":"…","assignee":"personId","topic":"topicId oder leer","brief":"…"}],"hinweise":["…"]}';
     try {
       var r = await S.sample.json(prompt, { modelTier: "default" });
@@ -1186,8 +1318,11 @@ details.panel[open] > summary { margin-bottom: 12px; }
         var i = list[k];
         await saveItem({ id: uidGen("i"), kind: i.channel ? "post" : "task", title: i.title, channel: i.channel, format: i.format, date: i.date, due: i.due, assignee: i.assignee, status: "idee", topic: i.topic, campaign: P.kampagne, eventId: evId, brief: i.brief, copy: "", link: "", comments: [], createdBy: S.uid || null });
       }
+      if (S.draft.docText.trim() || S.draft.files.length) {
+        await saveKnowledge({ id: uidGen("k"), title: "Infos: " + (P.event && evId ? P.event.title : P.kampagne), kind: "event", channel: "", link: evId ? "ev:" + evId : "ca:" + P.kampagne, text: S.draft.docText.slice(0, 200000), files: S.draft.files });
+      }
       toast(list.length + " Einträge angelegt. Das Team sieht sie jetzt unter „Heute“.");
-      S.draft = { text: "", busy: false, proposal: null, error: "" };
+      S.draft = { text: "", busy: false, proposal: null, error: "", docText: "", files: [] };
       location.hash = "#kalender";
     } catch (e) { /* toast already shown */ }
   }
@@ -1203,6 +1338,7 @@ details.panel[open] > summary { margin-bottom: 12px; }
     var prompt = "Du pflegst den Redaktionsplan von feelen. Die Bereichsleitung beschreibt eine Änderung an bestehenden Plänen. Setze sie als konkrete Änderungen um.\n\n" + planningContext() +
       "\n\nBETROFFEN: " + sd.label + (sd.event ? "\nEVENT: " + JSON.stringify({ title: sd.event.title, start: sd.event.start, end: sd.event.end || "", mode: sd.event.mode, location: sd.event.location || "" }) : "") +
       "\nBEITRÄGE (JSON, mit id):\n" + JSON.stringify(list) +
+      (function () { var t = linkedDocs(relatedLinks(sd.event ? sd.event.id : "", sd.campaign, ""), 40000); return t ? "\n\nUNTERLAGEN ZUM EVENT / ZUR KAMPAGNE:\n" + t : ""; })() +
       "\n\nÄNDERUNGSWUNSCH:\n" + C.text.trim() +
       "\n\nREGELN:\n- Ändere nur, was der Wunsch verlangt oder was zwingend daraus folgt (z. B. Beiträge mitverschieben, wenn sich das Event verschiebt, mit gleichem Abstand zum Event).\n- Nutze nur ids aus der Liste. Nur Kanal-ids und Personen-ids aus den Listen oben.\n- Beiträge mit Status \"live\" sind schon veröffentlicht: nicht löschen oder verschieben, höchstens in hinweise erwähnen.\n- Wird ein Beitrag einem anderen Kanal zugeordnet, passe die Zuständigkeit an.\n- Neue Beiträge nur, wenn der Wunsch es verlangt.\n- Schreibe auf Deutsch.\n\n" +
       'Antworte nur mit JSON:\n{"event": null oder {"start":"YYYY-MM-DD","end":"YYYY-MM-DD oder leer","title":"…"},"loeschen":[{"id":"…","grund":"…"}],"aendern":[{"id":"…","date":"…","due":"…","channel":"…","assignee":"…","title":"…","format":"…","brief":"…"}],"neu":[{"date":"…","due":"…","channel":"…","format":"…","title":"…","assignee":"…","brief":"…"}],"hinweise":["…"]}\nBei "aendern" nur die Felder angeben, die sich ändern.';
@@ -1269,6 +1405,7 @@ details.panel[open] > summary { margin-bottom: 12px; }
     var ev = it.eventId ? S.events.find(function (e) { return e.id === it.eventId; }) : null, tp = topic(it.topic);
     var prompt = "Du schreibst für feelen. Schreibe einen Textvorschlag für diesen Beitrag. Halte dich genau an den Tone of Voice.\n\n" +
       "TONE OF VOICE:\n" + (knowledgeText(it.channel, 40000) || "Noch nichts hinterlegt: schreibe warm, klar und nahbar, ohne Floskeln.") +
+      (function () { var t = linkedDocs(relatedLinks(it.eventId, it.campaign, ""), 60000); return t ? "\n\nUNTERLAGEN ZUM EVENT / ZUR KAMPAGNE (nutze die Fakten daraus, erfinde keine Daten oder Preise):\n" + t : ""; })() +
       "\n\nBEITRAG:\nKanal: " + chName(it.channel) + "\nFormat: " + (it.format || "frei") + "\nTitel: " + it.title + "\nVeröffentlichung: " + it.date + "\nBriefing: " + (it.brief || "–") +
       (tp ? "\nThema: " + tp.pillar.name + " > " + tp.topic.name : "") + (ev ? "\nEvent: " + ev.title + ", " + ev.start + (ev.end ? " bis " + ev.end : "") + ", " + (ev.mode || "") + (ev.location ? ", " + ev.location : "") + (ev.regLink ? ", Anmeldung: " + ev.regLink : "") : "") +
       (it.copy ? "\n\nBISHERIGER ENTWURF (verbessern, nicht ignorieren):\n" + it.copy : "") +
@@ -1427,8 +1564,9 @@ details.panel[open] > summary { margin-bottom: 12px; }
     "del-series": function (el) { if (el.dataset.confirm !== "1") { el.dataset.confirm = "1"; el.textContent = "Wirklich löschen?"; return; } var s = JSON.parse(dlg.dataset.series || "{}"); delDoc("series/" + s.id).then(function () { addLog("series", "gelöscht", s.id, s.name, "Start " + fmt(s.start)); }, function () {}); closeDlg(); },
     "file-del": function (el) { el.closest("[data-file]").remove(); },
     "new-know": function () { openKnow(null); },
+    "add-doc": function (el) { var link = el.dataset.link, title = el.dataset.title; closeDlg(); openKnow(null, { kind: "event", link: link, title: title }); },
     "open-know": function (el) { openKnow(el.dataset.id); },
-    "save-know": function () { var k = JSON.parse(dlg.dataset.know || "{}"); k.title = val("k-title").trim() || "Ohne Titel"; k.kind = val("k-kind"); k.channel = val("k-channel"); k.text = val("k-text").slice(0, 200000); k.files = readFiles(); closeDlg(); saveKnowledge(k).then(function () { toast("Gespeichert"); }, function () {}); },
+    "save-know": function () { var k = JSON.parse(dlg.dataset.know || "{}"); k.title = val("k-title").trim() || "Ohne Titel"; k.kind = val("k-kind"); k.channel = val("k-channel"); k.link = val("k-link"); k.text = val("k-text").slice(0, 200000); k.files = readFiles(); closeDlg(); saveKnowledge(k).then(function () { toast("Gespeichert"); }, function () {}); },
     "del-know": function (el) { if (el.dataset.confirm !== "1") { el.dataset.confirm = "1"; el.textContent = "Wirklich löschen?"; return; } var k = JSON.parse(dlg.dataset.know || "{}"); delDoc("knowledge/" + k.id).then(function () { addLog("knowledge", "gelöscht", k.id, k.title, ""); }, function () {}); closeDlg(); },
     "cal-prev": function () { S.cal.m--; if (S.cal.m < 0) { S.cal.m = 11; S.cal.y--; } render(true); },
     "cal-next": function () { S.cal.m++; if (S.cal.m > 11) { S.cal.m = 0; S.cal.y++; } render(true); },
@@ -1436,7 +1574,7 @@ details.panel[open] > summary { margin-bottom: 12px; }
     "toggle": function (el) { var k = el.dataset.k; S.hidden[k] = !S.hidden[k]; localSet("fp-hidden", JSON.stringify(S.hidden)); render(true); },
     "sort": function (el) { var k = el.dataset.k; if (S.table.sort === k) S.table.dir *= -1; else { S.table.sort = k; S.table.dir = 1; } render(true); },
     "draft-ai": runDraftAi,
-    "draft-clear": function () { S.draft = { text: "", busy: false, proposal: null, error: "" }; render(true); },
+    "draft-clear": function () { S.draft = { text: "", busy: false, proposal: null, error: "", docText: "", files: [] }; render(true); },
     "draft-addrow": function () { var d = today(); S.draft.proposal.items.push({ on: true, date: d, due: d, channel: "", format: "", title: "", assignee: "", topic: "", brief: "" }); render(true); },
     "draft-confirm": confirmDraft,
     "freq": runFreq,
